@@ -1,0 +1,2 @@
+objects_path = "/var/lib/objects"
+output_path = "/tmp"

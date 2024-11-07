@@ -1,0 +1,35 @@
+max_processed_size = 262144000
+max_objects = 262144
+max_object_depth = 16
+max_pages = 2048
+max_bookmarks = 8192
+max_annotations = 16384
+max_attachments = 128
+max_attachment_size = 33554432
+max_fonts_per_page = 128
+max_links = 2048
+max_signatures = 32
+max_signature_size = 262144
+
+render_pages = false
+
+# optional:
+render_page_width = 1920
+
+# optional:
+# render_page_height = 4320
+
+# WARNING: POSITIVELY DO NOT ENABLE THIS ONE! (without setting sane children limits)
+save_image_objects = false
+
+# valid OCR modes are: "Never", "IfNoDocumentTextAvailable" and "Always"
+ocr_mode = "IfNoDocumentTextAvailable"
+
+# valid image formats are "png", "jpg", "bmp", "webp" and "tiff":
+output_image_format = "png"
+
+objects_path = "/var/lib/objects"
+output_path = "/tmp"
+
+max_children = 100
+max_child_output_size = 41943040

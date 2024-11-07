@@ -1,0 +1,23 @@
+[package]
+name = "ooxml"
+edition.workspace = true
+version.workspace = true
+homepage = { workspace = true }
+license = { workspace = true }
+rust-version = { workspace = true }
+
+[dependencies]
+ctxole = { workspace = true }
+vba = { path = "../vba" }
+ctxunzip = { branch = "master", git = "ssh://git@gitlab.dev.contextal.com:2022/processing-engine/backends/libs-rs/ctxunzip.git" }
+convert_case = "0.6.0"
+bitflags = "2.5.0"
+quick-xml = { workspace = true }
+serde = { workspace = true }
+regex = { workspace = true }
+time = { workspace = true, features = [ "parsing" ] }
+tempfile = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+ctxutils = { workspace = true }
+utf8dec-rs = { workspace = true }

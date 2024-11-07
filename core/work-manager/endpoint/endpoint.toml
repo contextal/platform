@@ -1,0 +1,24 @@
+port = 8080
+objects_path = '/var/lib/objects'
+
+[broker]
+host = 'rabbit1'
+
+[typedet]
+host = 'typedet'
+port = 3310
+objects_path = '/var/lib/objects'
+
+[read_db]
+dbname = 'grapher'
+host = 'postgres'
+port = 5432
+user = 'grapher'
+pass = 'grapher'
+
+[write_db]
+dbname = 'grapher'
+host = 'postgres'
+port = 5432
+user = 'grapher'
+pass = 'grapher'

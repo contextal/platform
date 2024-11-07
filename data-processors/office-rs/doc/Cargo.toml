@@ -1,0 +1,20 @@
+[package]
+name = "doc"
+version = { workspace = true }
+edition = { workspace = true }
+homepage = { workspace = true }
+license = { workspace = true }
+rust-version = { workspace = true }
+
+[dependencies]
+ctxole = { workspace = true }
+vba = { path = "../vba" }
+ctxutils =  { workspace = true }
+utf8dec-rs = { workspace = true }
+time = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+serde = { workspace = true, optional = true }
+
+[features]
+serde = [ "dep:serde", "time/serde" ]

@@ -1,0 +1,20 @@
+worker_type = 'FIXME'
+objects_path = '/var/lib/objects'
+
+[broker]
+host = 'rabbit1'
+
+[clamd]
+host = 'clamd'
+port = 3310
+objects_path = '/var/lib/objects'
+
+[typedet]
+host = 'typedet'
+port = 3310
+objects_path = '/var/lib/objects'
+
+[backend]
+path = "backend"
+args = [ "--sample", "--args" ]
+port = 44203

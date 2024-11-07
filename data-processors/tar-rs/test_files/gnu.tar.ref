@@ -1,0 +1,24 @@
+{
+    'symbols': [],
+    'object_metadata': {
+        'has_devs': False,
+        'has_links': False,
+        'is_gnu': True,
+        'is_ustar': False
+    },
+    'children': [
+        {
+            'content': b'hello\n',
+            'symbols': [],
+            'relation_metadata': {
+                'uid': 1000,
+                'user': 'foobar',
+                'gid': 100,
+                'group': 'users',
+                'mode': '640',
+                'name': 'dst/hello.txt',
+                'time': 191739615,
+            }
+        },
+    ]
+}

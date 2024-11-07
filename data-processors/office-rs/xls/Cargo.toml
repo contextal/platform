@@ -1,0 +1,18 @@
+[package]
+name = "xls"
+version = { workspace = true }
+edition = { workspace = true }
+homepage = { workspace = true }
+license = { workspace = true }
+rust-version = { workspace = true }
+
+[dependencies]
+ctxole = { workspace = true }
+vba = { path = "../vba" }
+num_enum="0.7.2"
+from_record_derive = { path = "from_record_derive" }
+ctxutils = { workspace = true, features = ["win32"] }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+utf8dec-rs = { workspace = true }
+hexdump="0.1.1"

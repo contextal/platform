@@ -1,0 +1,25 @@
+[package]
+name = "msg-rs"
+version = "1.0.0"
+edition = "2021"
+homepage = "https://contextal.com/"
+license = "GPL-3.0-only"
+description = "MS-Outlook MSG archive backend"
+
+[dependencies]
+ctxole = {path = "../../libs/ctxole" }
+ctxutils = {path = "../../libs/ctxutils", features = [ "win32" ] }
+utf8dec-rs = {path = "../../libs/utf8dec-rs" }
+backend-utils = {path = "../../libs/backend-utils" }
+time = "0.3"
+regex = "1"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3.17", features = ["env-filter"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+tempfile = "3"
+figment = { version = "0.10", features = ["toml", "env"] }
+
+[profile.release]
+lto = true
+codegen-units = 1

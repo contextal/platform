@@ -1,0 +1,37 @@
+{
+    'symbols': [],
+    'object_metadata': {
+        'has_devs': False,
+        'has_links': False,
+        'is_gnu': True,
+        'is_ustar': False
+    },
+    'children': [
+        {
+            'symbols': [],
+            'relation_metadata': {
+                'gid': 1000,
+                'group': 'acab',
+                'mode': '100644',
+                'name': 'dst/hello.txt',
+                'time': 1689625729,
+                'uid': 1000,
+                'user': 'acab'
+            },
+            'content': b'hello\n'
+        },
+        {
+            'symbols': [],
+            'relation_metadata': {
+                'gid': 1000,
+                'group': 'acab',
+                'mode': '100644',
+                'name': 'dst/hi.txt',
+                'time': 1689633610,
+                'uid': 1000,
+                'user': 'acab'
+            },
+            'content': b'hi\n'
+        }
+    ]
+}

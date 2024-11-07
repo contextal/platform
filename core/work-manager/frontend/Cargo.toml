@@ -1,0 +1,26 @@
+[package]
+version.workspace = true
+edition.workspace = true
+homepage.workspace = true
+license.workspace = true
+rust-version.workspace = true
+name = "frontend"
+description = "Worker frontend and job dispatcher"
+
+[dependencies]
+shared = { path = "../shared" }
+tokio = { workspace = true, features = ["process", "signal"] }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+amqprs = { workspace = true }
+figment = { workspace = true }
+metrics = { workspace = true }
+metrics-exporter-prometheus = { workspace = true }
+futures = { workspace = true }
+
+[features]
+default = [ "backend" ]
+backend = []
+

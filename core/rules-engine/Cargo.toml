@@ -1,0 +1,22 @@
+[workspace]
+resolver = "2"
+members = [
+  "rules",
+  "pgrules",
+  "rules2sql",
+  "wasmql",
+  "tests",
+]
+exclude = [ "fuzz" ]
+
+[workspace.package]
+edition = "2021"
+version = "1.0.0"
+homepage = "https://contextal.com/"
+license = "GPL-3.0-only"
+
+[workspace.dependencies]
+pest = "2.7"
+pest_derive = "2.7"
+tracing = "0.1"
+time = "0.3"

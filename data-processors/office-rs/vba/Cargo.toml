@@ -1,0 +1,16 @@
+[package]
+name = "vba"
+version = { workspace = true }
+edition = { workspace = true }
+homepage = { workspace = true }
+license = { workspace = true }
+rust-version = { workspace = true }
+
+[dependencies]
+ctxole = { workspace = true }
+ctxutils = { workspace = true, features = ["win32"] }
+utf8dec-rs = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+regex = { workspace = true }
+time = { workspace = true, features = [ "formatting", "macros" ] }

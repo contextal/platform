@@ -1,0 +1,88 @@
+objects_path = "/var/lib/objects"
+output_path = "/tmp"
+max_children = 100
+max_child_output_size = 41943040
+
+# Browser (virtual) window size.
+#
+# JavaScript performed in a browser window can query these dimensions. So
+# use of uncommon/unrealistic dimensions makes it easier for bot-detection
+# services/libraries to detect that the request is performed not by human
+# being, but by a scrapper/headless chrome.
+window_size = [1920, 1200]
+
+# User agent string for browser to use while performing HTTP requests.
+user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36"
+
+# Optional "Accept-Language" HTTP header to use performing HTTP requests.
+accept_language = "en-US,en"
+
+# Chromium's request timeout in milliseconds. The duration after a request with
+# no response should time out.
+chrome_request_timeout_msec = 15000
+
+# An interval of time in milliseconds which must pass with
+# no-requests-in-progress state before considering that page is fully loaded.
+# Or in other words to workaround "network is idle -> busy -> idle" flops which
+# might cause a navigation request to be prematurely considered as fully
+# loaded.
+#
+# The higher this interval the higher probability that all elements on the page
+# are fully loaded. On the other hand every backend request would have
+# additional delay to ensure that there are no more network requests to fulfill
+# before considering the page as fully loaded.
+idle_network_settle_time_msec = 5000
+
+# Optional (use false for easier orientation with produced children
+# filenames and kinds during debugging):
+random_filenames = false
+
+# Optional proxy server:
+# proxy = "192.168.0.254:3128"
+# proxy = "socks5://192.168.0.254:9050"
+
+# Maximum interval of time in seconds for browser instance to run before
+# being recycled by the backend.
+max_instance_lifetime_seconds = 600
+
+# Maximum number of backend requests to process before recycling the
+# browser.
+max_backend_requests_per_instance = 10
+
+# Specifies whether to take a screenshot and produce corresponding artifact
+# after navigated to URL from a request.
+take_screenshot = true
+
+# Specifies whether to perform print-to-PDF and produce corresponding
+# artifact after navigated to URL from a request.
+perform_print_to_pdf = true
+
+# Specifies whether to save original HTTP-response-document and produce
+# corresponding artifact.
+#
+# HTML document in the browser window is often differs from original HTML
+# document sent by the web server in a reply to original HTTP request. The
+# reason for this is usually JavaScript code executed by a browser, which
+# adds, modifies, updates original HTML document. From the analysis
+# perspective actual HTML page rendered in a browser window is much more
+# valuable comparing to original HTML page, as it represents what
+# web-site-user actually sees.
+save_original_response = true
+
+# Maximum HTTP response body size in bytes (i.e. HTTP content-length) to
+# allow browser to fetch. HTTP response body could be compressed, so the
+# limit applies to the body before decompression and decompressed body size
+# could be larger then the specified limit.
+# While this parameter allows to filter some responses before response body
+# download begins, not all responses are subject for this limit, as
+# content-length HTTP header is optional.
+max_response_content_length = 512000
+
+# Maximum allowed HTTP response data size in bytes (after HTTP
+# transfer-encoding decompression).
+# This limit is applied when response body is being received. When received
+# response body grows over the specified limit the response is interrupted.
+max_response_data_length = 1024000
+
+# An optional list of resource types, which shouldn't be further processed.
+excluded_resource_types = [ "Font", "Stylesheet" ]

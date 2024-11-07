@@ -1,0 +1,24 @@
+[package]
+name = "url-rs"
+version = "1.0.0"
+edition = "2021"
+homepage = "https://contextal.com/"
+license = "GPL-3.0-only"
+description = "URL backend"
+
+[dependencies]
+backend-utils = { path = "../../libs/backend-utils" }
+base64 = "0.21.7"
+chromiumoxide = { version = "0.5.7", features = ["tokio", "tokio-runtime", "bytes"], default-features = false }
+data-url = "0.3.1"
+figment = { version = "0.10.12", features = ["toml", "env"] }
+futures = "0.3.30"
+regex = "1.10.4"
+scopeguard = "1.2.0"
+serde = { version = "1.0.188", features = ["derive"] }
+serde_json = "1.0.107"
+tempfile = "3.10.1"
+thiserror = "1.0.51"
+tokio = { version = "1.36.0", features = ["rt-multi-thread", "time"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3.17", features = ["env-filter"] }

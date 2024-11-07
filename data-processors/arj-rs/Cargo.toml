@@ -1,0 +1,17 @@
+[package]
+name = "arj-rs"
+version = "1.0.0"
+edition = "2021"
+homepage = "https://contextal.com/"
+license = "GPL-3.0-only"
+description = "ARJ archive backend"
+
+[dependencies]
+unarj-rs = "0.2.1"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3.17", features = ["env-filter"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+tempfile = "3"
+backend-utils = { path = "../../libs/backend-utils" }
+figment = { version = "0.10", features = ["toml", "env"] }

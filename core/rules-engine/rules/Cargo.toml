@@ -1,0 +1,10 @@
+[package]
+name = "rules"
+version = { workspace = true }
+edition = { workspace = true }
+homepage = { workspace = true }
+license = { workspace = true }
+
+[dependencies]
+pest = { workspace = true }
+pest_derive = { workspace = true }

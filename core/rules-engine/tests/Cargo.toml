@@ -1,0 +1,20 @@
+[package]
+name = "tests"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[dev-dependencies]
+time = "0.3"
+time-macros = "0.2.18"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+postgres = { version="0.19.7", features=["with-serde_json-1", "with-time-0_3"] }
+postgresql_embedded = { version="0.17.0", features = ["bundled", "blocking"] }
+regex = "1.10.5"
+nix = { version="0.29.0", features=["user"] }
+pgrules = { path = "../pgrules" }
+
+[[test]]
+name = "integration_test"
+path = "integration-test.rs"

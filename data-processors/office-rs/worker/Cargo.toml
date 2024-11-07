@@ -1,0 +1,28 @@
+[package]
+name = "worker"
+edition.workspace = true
+version.workspace = true
+homepage = { workspace = true }
+license = { workspace = true }
+rust-version = { workspace = true }
+
+[dependencies]
+backend-utils = { branch = "master", git = "ssh://git@gitlab.dev.contextal.com:2022/processing-engine/backends/libs-rs/backend-utils.git" }
+ctxutils = { workspace = true, features = ["win32"] }
+ctxole = { workspace = true }
+xls = { path = "../xls" }
+doc = { path = "../doc", features = [ "serde" ] }
+vba = { path = "../vba" }
+ooxml = { path = "../ooxml" }
+tempfile = { workspace = true }
+time = { workspace = true, features = [ "parsing" ] }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+serde = { workspace = true }
+serde_json = "1.0"
+figment = { version = "0.10", features = ["toml", "env"] }
+scopeguard = "1.2.0"
+toml = "0.8"
+
+[dev-dependencies]
+strsim = "0.11.1"

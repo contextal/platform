@@ -1,0 +1,7 @@
+max_children = 100
+max_processed_size = 262144000
+max_child_output_size = 41943040
+sheet_size_limit = 5242880
+shared_strings_cache_limit = 10000000
+objects_path = "/var/lib/objects"
+output_path = "/tmp"

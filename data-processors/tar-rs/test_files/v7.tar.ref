@@ -1,0 +1,24 @@
+{
+    'symbols': [],
+    'object_metadata': {
+        'has_devs': False,
+        'has_links': False,
+        'is_gnu': False,
+        'is_ustar': False,
+    },
+    'children': [
+        {
+            'symbols': [],
+            'relation_metadata': {
+                'gid': 1000,
+                'group': None,
+                'mode': '644',
+                'name': 'dst/v7.txt',
+                'time': 1689634088,
+                'uid': 1000,
+                'user': None,
+            },
+            'content': b'this is very old\n'
+        }
+    ]
+}

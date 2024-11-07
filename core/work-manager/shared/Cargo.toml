@@ -1,0 +1,21 @@
+[package]
+version.workspace = true
+edition.workspace = true
+homepage.workspace = true
+license.workspace = true
+name = "shared"
+description = "Data processing pipeline crate"
+
+[dependencies]
+tokio = { workspace = true, features = ["fs"] }
+async-trait = { workspace = true }
+tracing = { workspace = true }
+metrics = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+amqprs = { workspace = true }
+rand = { workspace = true }
+digest = "0.10"
+md-5 = "0.10"
+sha1 = "0.10"
+sha2 = "0.10"

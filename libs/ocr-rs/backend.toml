@@ -1,0 +1,4 @@
+max_input_size_pixels = 10240000
+max_input_size_bytes = 40960000
+objects_path = "/var/lib/objects"
+output_path = "/tmp"

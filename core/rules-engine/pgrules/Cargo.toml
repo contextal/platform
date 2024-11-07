@@ -1,0 +1,13 @@
+[package]
+name = "pgrules"
+version = { workspace = true }
+edition = { workspace = true }
+homepage = { workspace = true }
+license = { workspace = true }
+
+[dependencies]
+rules = { path = "../rules" }
+pest = { workspace = true }
+postgres-protocol = "0.6.6"
+tracing = { workspace = true }
+time = { workspace = true, features=["parsing"] }

@@ -1,0 +1,37 @@
+{
+    'symbols': ['LIMITS_REACHED'],
+    'object_metadata': {
+        'has_devs': False,
+        'has_links': False,
+        'is_gnu': True,
+        'is_ustar': False
+    },
+    'children': [
+        {
+            'symbols': [],
+            'relation_metadata': {
+                'gid': 1000,
+                'group': 'acab',
+                'mode': '644',
+                'name': 'dst/small.txt',
+                'time': 1689634331,
+                'uid': 1000,
+                'user': 'acab'
+            },
+            'content': b'thin\n'
+	},
+        {
+            'symbols': ['TOOBIG'],
+            'relation_metadata': {
+                'gid': 1000,
+                'group': 'acab',
+                'mode': '644',
+                'name': 'dst/sparse',
+                'time': 1689634439,
+                'uid': 1000,
+                'user': 'acab'
+            },
+            'content': None
+	}
+    ]
+}

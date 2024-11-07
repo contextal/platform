@@ -1,0 +1,3 @@
+objects_path = "/var/lib/objects"
+output_path = "/tmp"
+max_child_output_size = 41943040

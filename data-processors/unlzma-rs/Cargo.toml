@@ -1,0 +1,18 @@
+[package]
+name = "unlzma-rs"
+version = "1.0.0"
+edition = "2021"
+homepage = "https://contextal.com/"
+license = "GPL-3.0-only"
+description = "Generic LZMA (LZMA1/LZMA2/XZ/LZIP) decompressor"
+
+[dependencies]
+tracing = "0.1"
+tracing-subscriber = { version = "0.3.17", features = ["env-filter"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+tempfile = "3"
+backend-utils = {path = "../../libs/backend-utils" }
+ctxutils = {path = "../../libs/ctxutils" }
+ctxunzip = {path = "../../libs/ctxunzip" }
+figment = { version = "0.10", features = ["toml", "env"] }

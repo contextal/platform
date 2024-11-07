@@ -1,0 +1,33 @@
+[workspace]
+resolver = "2"
+members = [
+	"doc",
+	"xls",
+	"vba",
+	"ooxml",
+	"worker"
+	]
+
+[workspace.package]
+edition = "2021"
+version = "1.0.0"
+homepage = "https://contextal.com/"
+license = "GPL-3.0-only"
+rust-version = "1.77"
+
+[workspace.dependencies]
+ctxutils = {path = "../../libs/ctxutils" }
+ctxole = {path = "../../libs/ctxole" }
+utf8dec-rs = {path = "../../libs/utf8dec-rs" }
+regex = "1"
+serde = { version = "1.0", features = ["derive"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
+time = "0.3"
+tempfile = "3"
+quick-xml = { version = "0.31", features = [ "serialize" ] }
+
+[profile.release]
+lto = true
+codegen-units = 1
+#debug = true

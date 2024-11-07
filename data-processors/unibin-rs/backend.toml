@@ -1,0 +1,6 @@
+max_children = 5
+max_processed_size = 262144000
+max_child_input_size = 125829120
+max_child_output_size = 125829120
+objects_path = "/var/lib/objects"
+output_path = "/tmp"

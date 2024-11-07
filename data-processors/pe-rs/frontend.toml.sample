@@ -1,0 +1,19 @@
+worker_type = 'PE'
+objects_path = '/var/lib/objects'
+
+[broker]
+host = 'rabbit1'
+
+[clamd.symbols]
+host = 'clamd'
+port = 3310
+objects_path = '/var/lib/objects'
+
+[clamd.ftype]
+host = 'clamd-ftype'
+port = 3310
+objects_path = '/var/lib/objects'
+
+[backend]
+path = "./backend"
+port = 44203
