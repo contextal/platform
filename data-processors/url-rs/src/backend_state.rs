@@ -93,7 +93,6 @@ impl Backend {
                 }
             }
         });
-
         Ok((browser, browser_handle))
     }
 

@@ -281,7 +281,7 @@ impl Page {
                 let inflight_requests_tx = inflight_requests_tx.clone();
                 tokio::task::spawn(async move {
                     let network_id = match event.network_id {
-                        Some(ref id) => id.clone(),
+                        Some(ref id) => id.clone().into(),
                         None => {
                             warn!(
                                 "intercepted: {:?}, no network id => skipping the event",
@@ -348,7 +348,10 @@ impl Page {
                                         error_text: None,
                                         config: config.clone(),
                                         interruption_reason: None,
-                                        network_id: event.network_id.clone(),
+                                        network_id: event
+                                            .network_id
+                                            .as_ref()
+                                            .map(|id| id.clone().into()),
                                         blocked_reason: None,
                                     }
                                 });

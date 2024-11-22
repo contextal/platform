@@ -9,7 +9,8 @@ description = "URL backend"
 [dependencies]
 backend-utils = { path = "../../libs/backend-utils" }
 base64 = "0.21.7"
-chromiumoxide = { version = "0.5.7", features = ["tokio", "tokio-runtime", "bytes"], default-features = false }
+#chromiumoxide = { version = "0.5.7", features = ["tokio", "tokio-runtime", "bytes"], default-features = false }
+chromiumoxide = { git = "https://github.com/mattsse/chromiumoxide", features = ["tokio-runtime"], default-features = false, branch = "main"}
 data-url = "0.3.1"
 figment = { version = "0.10.12", features = ["toml", "env"] }
 futures = "0.3.30"

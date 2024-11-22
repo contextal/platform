@@ -1257,41 +1257,6 @@ fn process_file(
                 limits_reached = true;
                 break;
             }
-            // TODO: Verify type mapping
-            let mut request_ocr = false;
-            let enforced_type = match file.rel_type {
-                RelationshipType::VbaProject => {
-                    // This has a specific handler
-                    continue;
-                }
-                RelationshipType::Hyperlink
-                | RelationshipType::Header
-                | RelationshipType::Footer
-                | RelationshipType::SharedStrings
-                | RelationshipType::CoreProperties
-                | RelationshipType::ExtendedProperties
-                | RelationshipType::CustomProperties
-                | RelationshipType::Settings
-                | RelationshipType::Worksheet
-                | RelationshipType::Macrosheet
-                | RelationshipType::Dialogsheet
-                | RelationshipType::Chartsheet
-                | RelationshipType::Drawing => {
-                    // These relationships should be handled elsewhere
-                    continue;
-                }
-                RelationshipType::Image => {
-                    request_ocr = true;
-                    Some("Image".to_string())
-                }
-                RelationshipType::OfficeDocument
-                | RelationshipType::Chart
-                | RelationshipType::DiagramData
-                | RelationshipType::OleObject
-                | RelationshipType::Package
-                | RelationshipType::Other(_) => None,
-            };
-
             let mut symbols = Vec::<String>::new();
             let mut relation_metadata = Metadata::new();
             relation_metadata.insert(
@@ -1319,7 +1284,7 @@ fn process_file(
                 "relationship_type".to_string(),
                 serde_json::Value::String(file.rel_type.name().to_string()),
             );
-            if request_ocr {
+            if file.rel_type == RelationshipType::Image {
                 relation_metadata.insert("request_ocr".to_string(), serde_json::Value::Bool(true));
             }
 
@@ -1344,7 +1309,7 @@ fn process_file(
             };
 
             children.push(Child {
-                enforced_type,
+                enforced_type: None,
                 file,
                 symbols,
                 relation_metadata,
