@@ -1,6 +1,6 @@
 mod amqp;
 mod config;
-mod graph;
+mod graphdb;
 
 use metrics_exporter_prometheus::PrometheusBuilder;
 use std::sync::Arc;
@@ -52,7 +52,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         )
     });
 
-    let graphdb = graph::GraphDB::new(&config.write_db, failure_notice.clone()).await?;
+    let graphdb = graphdb::GraphDB::new(&config.write_db, failure_notice.clone()).await?;
     let broker = amqp::Broker::new(&config.broker, graphdb).await?;
 
     info!("Grapher started");

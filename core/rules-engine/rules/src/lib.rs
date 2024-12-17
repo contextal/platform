@@ -55,8 +55,9 @@ pub fn unescape_string(
                         .expect("Invalid hexadecimal unicode format");
                     let c = char::from_u32(code).ok_or_else(|| {
                         pest::error::Error::new_from_span(
+                            // This error will be printed in UI as Expected ...
                             pest::error::ErrorVariant::CustomError {
-                                message: "Invalid character code".to_string(),
+                                message: "Valid character code".to_string(),
                             },
                             value.as_span(),
                         )
@@ -78,8 +79,9 @@ pub fn unescape_string(
                         .expect("Invalid hexadecimal unicode format");
                     let c = char::from_u32(code).ok_or_else(|| {
                         pest::error::Error::new_from_span(
+                            // This error will be printed in UI as Expected ...
                             pest::error::ErrorVariant::CustomError {
-                                message: "Invalid character code".to_string(),
+                                message: "Valid character code".to_string(),
                             },
                             value.as_span(),
                         )

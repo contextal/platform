@@ -3,6 +3,9 @@ max_processed_size = 10485760
 objects_path = "/var/lib/objects"
 output_path = "/tmp"
 
+# Maximum bumber of children to create
+max_children = 50
+
 # Maximum number_of_characters / number_of_whitespaces ratio to consider
 # running the natural language detection.
 natural_language_max_char_whitespace_ratio = 20.0
@@ -12,3 +15,6 @@ natural_language_min_confidence_level = 0.2
 
 # Whether to create URL children (currently only for OCR'd text)
 create_url_children = true
+
+# Whether to create Domain children
+create_domain_children = true

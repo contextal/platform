@@ -1,132 +1,187 @@
-    ident_bool = {
-        "is_entry"
-    }
-    ident_string = {
-        "work_id"
-        | "object_id"
-        | "org"
-        | "object_type"
-        | "object_subtype"
-    }
-    ident_number = {
-        "recursion_level"
-        | "size"
-    }
+ident_bool = {
+    "is_entry"
+}
+ident_string = {
+    "work_id"
+    | "object_id"
+    | "org"
+    | "object_type"
+    | "object_subtype"
+}
+ident_number = {
+    "recursion_level"
+    | "size"
+    | "entropy"
+}
 
-    op = { equals | compares }
-    compares = { "<=" | ">=" | ">" | "<" }
-    equals = { "==" | "=" | "<>" | "!=" }
+op = { equals | compares }
+compares = { "<=" | ">=" | ">" | "<" }
+equals = { "==" | "=" | "<>" | "!=" }
 
-    string = { string_regular | string_raw }
+string = { string_regular | string_raw }
 
-    string_regular = { "\"" ~ string_regular_value ~ "\"" }
-    string_regular_value = ${ char* }
-    char = {
-        !("\"" | "\\") ~ ANY
-        | "\\" ~ ("\"" | "\\" | "n" | "r" | "t")
-        | "\\" ~ ("u" ~ ASCII_HEX_DIGIT{4})
-        | "\\" ~ ("U" ~ ASCII_HEX_DIGIT{8})
-    }
-    string_raw = { "r\"" ~ string_raw_value ~ "\""}
-    string_raw_value = { (!"\"" ~ ANY)* }
+string_regular = { "\"" ~ string_regular_value ~ "\"" }
+string_regular_value = ${ char* }
+char = {
+    !("\"" | "\\") ~ ANY
+    | "\\" ~ ("\"" | "\\" | "n" | "r" | "t")
+    | "\\" ~ ("u" ~ ASCII_HEX_DIGIT{4})
+    | "\\" ~ ("U" ~ ASCII_HEX_DIGIT{8})
+}
+string_raw = { "r\"" ~ string_raw_value ~ "\""}
+string_raw_value = { (!"\"" ~ ANY)* }
 
-    date_string = _{"\"" ~  (datetime | date) ~ "\""}
-    date = @{ ASCII_DIGIT{4} ~ "-" ~ ASCII_DIGIT{2} ~ "-" ~ ASCII_DIGIT{2} }
-    time = @{ ASCII_DIGIT{2} ~ ":" ~ ASCII_DIGIT{2} ~ ":" ~ ASCII_DIGIT{2} }
-    datetime = ${date ~ " " ~ time}
+date_string = _{"\"" ~  (datetime | date) ~ "\""}
+date = @{ ASCII_DIGIT{4} ~ "-" ~ ASCII_DIGIT{2} ~ "-" ~ ASCII_DIGIT{2} }
+time = @{ ASCII_DIGIT{2} ~ ":" ~ ASCII_DIGIT{2} ~ ":" ~ ASCII_DIGIT{2} }
+datetime = ${date ~ " " ~ time}
 
-    jsonpath_ident = ${ (ASCII_ALPHANUMERIC|"_")+ | string_regular }
-    jsonpath_selector_identifier = { jsonpath_ident }
-    jsonpath_selector_index = { "[" ~ (integer) ~ "]" }
+jsonpath_ident = ${ (ASCII_ALPHANUMERIC|"_")+ | string_regular }
+jsonpath_selector_identifier = { !((ASCII_ALPHANUMERIC|"_")+ ~ "(" ~ ")") ~ jsonpath_ident }
+jsonpath_selector_index = { "[" ~ integer ~ "]" }
 
-    jsonpath_path_simple = {"$" ~ jsonpath_selector_identifier ~ ( ("." ~ jsonpath_selector_identifier) | jsonpath_selector_index)*}
-    jsonpath_match_simple = _{ jsonpath_path_simple ~
-        (
-            jsonpath_match_simple_equals
-            | jsonpath_match_simple_compares
-            | func_arg_regex
-            | func_arg_iregex
-            | func_arg_starts_with
-        ) }
-    jsonpath_match_simple_equals = _{jsonpath_equals ~ (string | number | bool | jsonpath_path_simple)}
-    func_arg_regex = { "regex" ~ "(" ~ string ~ ")" }
-    func_arg_iregex = { "iregex" ~ "(" ~ string ~ ")" }
-    func_arg_starts_with = { "starts_with" ~ "(" ~ string ~ ")" }
-    jsonpath_match_simple_compares = _{compares ~ (number | jsonpath_path_simple)}
-    jsonpath_equals = ${ "==" | "!=" | "<>" }
+jsonpath_path_simple = {"$" ~ jsonpath_selector_identifier ~ ( ("." ~ jsonpath_selector_identifier) | jsonpath_selector_index)*}
+jsonpath_match_simple = _{ jsonpath_path_simple ~
+    (
+        jsonpath_match_simple_equals
+        | jsonpath_match_simple_compares
+        | func_arg_regex
+        | func_arg_iregex
+        | func_arg_starts_with
+        | jsonpath_match_length
+    ) }
+jsonpath_match_simple_equals = _{jsonpath_equals ~ (string | number | bool | jsonpath_path_simple)}
+func_arg_regex = { "regex" ~ "(" ~ string ~ ")" }
+func_arg_iregex = { "iregex" ~ "(" ~ string ~ ")" }
+func_arg_starts_with = { "starts_with" ~ "(" ~ string ~ ")" }
+jsonpath_match_simple_compares = _{compares ~ (number | jsonpath_path_simple)}
+jsonpath_equals = ${ "==" | "!=" | "<>" }
+jsonpath_match_length = {".len()" ~ op ~ jsonpath_unsigned }
+jsonpath_unsigned = { ASCII_DIGIT+ }
 
-    number = @{ integer ~ ("." ~ ASCII_DIGIT+)? ~ (^"e" ~ integer)? }
-    integer = { ("+" | "-")? ~ ASCII_DIGIT+ }
-    bool = { "true" | "false" }
+number = @{ integer ~ ("." ~ ASCII_DIGIT+)? ~ (^"e" ~ integer)? }
+integer = @{ ("+" | "-")? ~ ASCII_DIGIT+ }
+bool = { "true" | "false" }
 
-    get_hash_fn = !{ "get_hash" ~ "(" ~ string ~ ")" }
-    has_symbol_fn = !{ "has_symbol" ~ "(" ~ (string | func_arg_regex | func_arg_iregex | func_arg_starts_with) ~ ")" }
-    has_name_fn = !{ "has_name" ~ "(" ~ (string | func_arg_regex | func_arg_iregex | func_arg_starts_with) ~ ")" }
-    has_descendant_fn = !{ "has_descendant" ~ "(" ~ node ~ ("," ~ integer)? ~ ")" }
-    has_ancestor_fn = !{ "has_ancestor" ~ "(" ~ node ~ ("," ~ integer)? ~ ")" }
-    has_child_fn = !{ "has_child" ~ "(" ~ node ~ ")" }
-    has_root_fn = !{ "has_root" ~ "(" ~ node ~ ")" }
-    has_parent_fn = !{ "has_parent" ~ "(" ~ node ~ ")" }
-    has_sibling_fn = !{ "has_sibling" ~ "(" ~ node ~ ")" }
-    has_object_meta_fn = !{ "has_object_meta" ~ "(" ~ jsonpath_path_simple ~ ")" }
-    has_relation_meta_fn = !{ "has_relation_meta" ~ "(" ~ jsonpath_path_simple ~ ")" }
-    match_object_meta_fn = !{ "match_object_meta" ~ "(" ~ jsonpath_match_simple ~ ")" }
-    match_relation_meta_fn = !{ "match_relation_meta" ~ "(" ~ jsonpath_match_simple ~ ")" }
-    date_range_fn = !{ "date_range" ~ "(" ~ date_string ~ "," ~ date_string ~ ")" }
-    date_since_fn = !{ "date_since" ~ "(" ~ date_string ~ ")" }
-    count_ancestors_fn = !{ "count_ancestors" ~ "(" ~ (node ~ ("," ~ integer)?)? ~ ")" }
-    count_descendants_fn = !{ "count_descendants" ~ "(" ~ (node ~ ("," ~ integer)?)? ~ ")" }
-    count_children_fn = !{ "count_children" ~ "(" ~ node? ~ ")" }
-    count_siblings_fn = !{ "count_siblings" ~ "(" ~ node? ~ ")" }
-    has_error_fn = !{ "has_error" ~ "(" ~( string | func_arg_regex | func_arg_iregex | func_arg_starts_with )? ~ ")"}
-    is_root_fn = !{ "is_root()" }
-    is_leaf_fn = !{ "is_leaf()" }
+clam_pattern = ${  (clam_offset ~ ":")? ~ ( clam_hex_signature | string ) }
+clam_hex_signature = { !":" ~ (clam_hex_subsignature ~ (clam_hex_splitter ~ clam_hex_subsignature)*) }
+clam_hex_alternative = { clam_hex_alternative_singlebyte | clam_hex_alternative_multibyte | clam_hex_alternative_generic }
+clam_hex_alternative_singlebyte = { "!"? ~ "(" ~ clam_hex_signature_byte_simple ~ ("|" ~ clam_hex_signature_byte_simple)* ~ ")" }
+clam_hex_alternative_multibyte = { "!"? ~ "(" ~ clam_hex_alternative_multibyte_part ~ ("|" ~ clam_hex_alternative_multibyte_part )* ~ ")" }
+clam_hex_alternative_multibyte_part = { clam_hex_signature_byte_simple{2,} }
+clam_hex_alternative_generic = { "(" ~ clam_hex_signature_alt ~ ("|" ~ clam_hex_signature_alt)* ~ ")" }
+clam_hex_subsignature = { (clam_hex_signature_byte | clam_hex_alternative | clam_hex_wildcard_repetition)+  }
+clam_hex_wildcard_repetition = { "{" ~ ASCII_DIGIT+ ~ "}" }
+clam_hex_splitter = {
+    "*" |
+    ("{" ~ ASCII_DIGIT* ~ "-" ~ ASCII_DIGIT* ~ "}") |
+    ("[" ~ ASCII_DIGIT+ ~ "-" ~ ASCII_DIGIT+ ~ "]")
+}
+clam_offset = { "*" | ("EOF-"?  ~ ASCII_DIGIT+) }
+clam_hex_signature_byte_simple = _{ ('0'..'9' | 'a'..'f'){2} }
+clam_hex_signature_byte = { ('0'..'9' | 'a'..'f' | "?"){2} }
+clam_hex_signature_alt = _{ clam_hex_signature_byte+ ~ ("{" ~ ASCII_DIGIT+ ~ "}" ~ clam_hex_signature_byte+)* }
 
-    functions = { functions_bool | functions_string | functions_number}
-    functions_bool = ${ "@" ~ (
-        has_symbol_fn
-        | has_name_fn
-        | has_descendant_fn
-        | has_ancestor_fn
-        | has_parent_fn
-        | has_sibling_fn
-        | has_child_fn
-        | has_root_fn
-        | has_object_meta_fn
-        | has_relation_meta_fn
-        | match_object_meta_fn
-        | match_relation_meta_fn
-        | date_range_fn
-        | date_since_fn
-        | has_error_fn
-        | is_root_fn
-        | is_leaf_fn
-    )}
-    functions_string = ${ "@" ~ (
-        get_hash_fn
-    )}
-    functions_number = ${ "@" ~ (
-        count_ancestors_fn
-        | count_descendants_fn
-        | count_children_fn
-        | count_siblings_fn
-    )}
+/* // LDB signatures are disabled, rules may be reused in future
+clam_ndb_signature = { "ndb:"~ ASCII_DIGIT+ ~ ":" ~ clam_offset ~ ":" ~ clam_hex_signature ~ (":" ~ ASCII_DIGIT+ ~ (":" ~ ASCII_DIGIT+)?)?}
+clam_ldb_signature = { "ldb;" ~ clam_target_description_block ~ ";" ~ clam_logical_expression ~ (";" ~ clam_subsig)+ }
+clam_offset = _{
+    "*" | "VI" |
+    (("EOF-" | ("EP" ~ ("+"|"-")) | ("S" ~ ("L" | ASCII_DIGIT+) ~ "+") )? ~
+    ASCII_DIGIT+ ~ (","~ASCII_DIGIT+)?) | ("SE" ~ ASCII_DIGIT+)
+}
+clam_target_description_block_part = { (!(":" | ";" | "," )+ ~ ANY)+ ~ ":" ~ (!(":" | ";" | "," )+ ~ ANY)+ }
+clam_target_description_block = { (clam_target_description_block_part ~ ("," ~ clam_target_description_block_part)*)? }
+clam_logical_expression_group = _{ "(" ~ clam_logical_expression_line ~ ")" }
+clam_logical_expression_line = _{ (( ASCII_DIGIT+ ~ (","~ASCII_DIGIT*)? ) | "&"| "|" | "=" | ">" | "<" | clam_logical_expression_group)+ }
+clam_logical_expression = { clam_logical_expression_line }
+clam_subsig = {
+    (
+        !";" ~
+        clam_pcre |
+        "&"| "|" | "=" | ">" | "<" |
+        ":" | "#" | "?" | "*" | "-" | "," | "+" |
+        ASCII_ALPHANUMERIC |
+        ("{" ~ (ASCII_DIGIT | "-")+ ~"}") |
+        ("[" ~ (ASCII_DIGIT | "-")+ ~"]") |
+        ("!"? ~ "(" ~ clam_subsig ~ ")" )
+    )+
+}
+clam_pcre_set = _{"[" ~ (!"]" ~ ANY | "\\]")* ~"]"}
+clam_pcre = { "/" ~ (clam_pcre_set | ("\\/" | !"/" ~ ANY ) )* ~ "/" }
+*/
 
-    cond = {
-        (functions_bool | ident_bool) ~ equals ~ (bool | ident_bool) |
-        (functions_string | ident_string) ~ equals ~ (constant_string | ident_string | functions_string) |
-        (functions_number | ident_number) ~ op ~ (number | ident_number | functions_number) |
-        functions_bool | ident_bool | bool
-    }
-    constant_string = { string }
+get_hash_fn = !{ "get_hash" ~ "(" ~ string ~ ")" }
+has_symbol_fn = !{ "has_symbol" ~ "(" ~ (string | func_arg_regex | func_arg_iregex | func_arg_starts_with) ~ ")" }
+has_name_fn = !{ "has_name" ~ "(" ~ (string | func_arg_regex | func_arg_iregex | func_arg_starts_with) ~ ")" }
+has_descendant_fn = !{ "has_descendant" ~ "(" ~ node ~ ("," ~ integer)? ~ ")" }
+has_ancestor_fn = !{ "has_ancestor" ~ "(" ~ node ~ ("," ~ integer)? ~ ")" }
+has_child_fn = !{ "has_child" ~ "(" ~ node ~ ")" }
+has_root_fn = !{ "has_root" ~ "(" ~ node ~ ")" }
+has_parent_fn = !{ "has_parent" ~ "(" ~ node ~ ")" }
+has_sibling_fn = !{ "has_sibling" ~ "(" ~ node ~ ")" }
+has_object_meta_fn = !{ "has_object_meta" ~ "(" ~ jsonpath_path_simple ~ ")" }
+has_relation_meta_fn = !{ "has_relation_meta" ~ "(" ~ jsonpath_path_simple ~ ")" }
+match_object_meta_fn = !{ "match_object_meta" ~ "(" ~ jsonpath_match_simple ~ ")" }
+match_relation_meta_fn = !{ "match_relation_meta" ~ "(" ~ jsonpath_match_simple ~ ")" }
+date_range_fn = !{ "date_range" ~ "(" ~ date_string ~ "," ~ date_string ~ ")" }
+date_since_fn = !{ "date_since" ~ "(" ~ date_string ~ ")" }
+count_ancestors_fn = !{ "count_ancestors" ~ "(" ~ (node ~ ("," ~ integer)?)? ~ ")" }
+count_descendants_fn = !{ "count_descendants" ~ "(" ~ (node ~ ("," ~ integer)?)? ~ ")" }
+count_children_fn = !{ "count_children" ~ "(" ~ node? ~ ")" }
+count_siblings_fn = !{ "count_siblings" ~ "(" ~ node? ~ ")" }
+has_error_fn = !{ "has_error" ~ "(" ~( string | func_arg_regex | func_arg_iregex | func_arg_starts_with )? ~ ")"}
+is_root_fn = !{ "is_root()" }
+is_leaf_fn = !{ "is_leaf()" }
+match_pattern_fn = !{ "match_pattern" ~ "(" ~ clam_pattern ~ ")" }
 
-    logic_or = { "||" | ^"or" }
-    logic_and = { "&&" | ^"and" }
-    glue = { logic_and | logic_or }
+functions = { functions_bool | functions_string | functions_number}
+functions_bool = ${ "@" ~ (
+    has_symbol_fn
+    | has_name_fn
+    | has_descendant_fn
+    | has_ancestor_fn
+    | has_parent_fn
+    | has_sibling_fn
+    | has_child_fn
+    | has_root_fn
+    | has_object_meta_fn
+    | has_relation_meta_fn
+    | match_object_meta_fn
+    | match_relation_meta_fn
+    | date_range_fn
+    | date_since_fn
+    | has_error_fn
+    | is_root_fn
+    | is_leaf_fn
+    | match_pattern_fn
+)}
+functions_string = ${ "@" ~ (
+    get_hash_fn
+)}
+functions_number = ${ "@" ~ (
+    count_ancestors_fn
+    | count_descendants_fn
+    | count_children_fn
+    | count_siblings_fn
+)}
 
-    logic_not = { (^"not"~!ASCII_ALPHANUMERIC ) | "!" }
-    node_primary = _{ logic_not? ~ (cond | "(" ~ node ~ ")") }
-    node = { node_primary ~ ( glue ~ node_primary )* }
-    rule = { SOI ~ node ~ EOI }
+cond = {
+    (functions_bool | ident_bool) ~ equals ~ (bool | ident_bool) |
+    (functions_string | ident_string) ~ equals ~ (constant_string | ident_string | functions_string) |
+    (functions_number | ident_number) ~ op ~ (number | ident_number | functions_number) |
+    functions_bool | ident_bool | bool
+}
+constant_string = { string }
 
-    WHITESPACE = _{ " "|"\n"|"\t" }
+logic_or = { "||" | ^"or" }
+logic_and = { "&&" | ^"and" }
+glue = { logic_and | logic_or }
+
+logic_not = { (^"not"~!ASCII_ALPHANUMERIC ) | "!" }
+node_primary = _{ logic_not? ~ (cond | "(" ~ node ~ ")") }
+node = { node_primary ~ ( glue ~ node_primary )* }
+rule = { SOI ~ node ~ EOI }
+
+WHITESPACE = _{ " "|"\n"|"\t" }
+COMMENT = @{ ("//" ~ (!"\n" ~ ANY)*) | ("/*" ~ (!"*/" ~ ANY)* ~ "*/") }

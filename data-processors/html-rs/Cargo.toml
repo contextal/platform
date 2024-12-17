@@ -1,6 +1,6 @@
 [package]
 name = "html-rs"
-version = "1.0.0"
+version = "1.1.0"
 edition = "2021"
 homepage = "https://contextal.com/"
 license = "GPL-3.0-only"
@@ -20,3 +20,4 @@ figment = { version = "0.10", features = ["toml", "env"] }
 encoding_rs = "0.8.6"
 chardetng = "0.1.17"
 data-url = "0.3.1"
+addr = "0.15.6"

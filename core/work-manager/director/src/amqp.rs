@@ -4,7 +4,6 @@
 use amqprs::{
     channel::{
         BasicAckArguments, BasicConsumeArguments, BasicRejectArguments, Channel, ConsumerMessage,
-        ExchangeDeclareArguments, ExchangeType, QueueBindArguments, QueueDeclareArguments,
     },
     connection::Connection,
 };
@@ -46,60 +45,7 @@ impl Broker {
 
         let (reload_ctag, reload_receiver) = match async {
             // Declare reload exchange and queue
-            debug!(
-                "Declaring the reload exchange \"{}\"...",
-                shared::SC_RELOAD_EXCHANGE_NAME
-            );
-            reload_channel
-                .exchange_declare(
-                    ExchangeDeclareArguments::of_type(
-                        shared::SC_RELOAD_EXCHANGE_NAME,
-                        ExchangeType::Fanout,
-                    )
-                    .durable(true)
-                    .finish(),
-                )
-                .await
-                .map_err(|e| {
-                    error!("Failed to declare the reload exchange: {}", e);
-                    e
-                })?;
-            let qargs = QueueDeclareArguments::default()
-                .exclusive(true)
-                .auto_delete(true)
-                .finish();
-            let (reload_queue, message_count, consumer_count) = reload_channel
-                .queue_declare(qargs)
-                .await
-                .map_err(|e| {
-                    error!("Failed to declare the reload queue: {}", e);
-                    e
-                })?
-                .unwrap();
-            debug!(
-                "Reload queue \"{}\" successfully declared ({} messages, {} consumers)",
-                reload_queue, message_count, consumer_count
-            );
-
-            // Bind the reload queue to the reload exchange
-            reload_channel
-                .queue_bind(QueueBindArguments::new(
-                    &reload_queue,
-                    shared::SC_RELOAD_EXCHANGE_NAME,
-                    "",
-                ))
-                .await
-                .map_err(|e| {
-                    error!("Failed to bind the reload queue to its exchange: {}", e);
-                    e
-                })?;
-            debug!(
-                "Reload queue \"{}\" declared ({} messages, {} consumers) and bound to {}",
-                reload_queue,
-                message_count,
-                consumer_count,
-                shared::SC_RELOAD_EXCHANGE_NAME
-            );
+            let reload_queue = shared::amqp::declare_reload_queue(&reload_channel).await?;
 
             // Subscribe to the reload queue
             let args = BasicConsumeArguments::new(&reload_queue, "")
@@ -240,7 +186,7 @@ impl Broker {
                 }
             );
         }
-        return Err("Broker lost".into());
+        Err("Broker lost".into())
     }
 
     /// Handles apply scenarios messages

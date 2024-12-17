@@ -9,7 +9,6 @@ use tracing::{debug, error, info, warn};
 const SCENARIOS_COUNT: &str = "director_scenarios_total";
 const WORKS_COUNT: &str = "director_works_total";
 const PROCESSING_TIME: &str = "director_process_time_seconds";
-const VERSION: u16 = 1;
 // Limit the number of neighbour works to match by the global query to:
 // max(scenario.min_matches * NEIGHBOUR_LIMIT_MUL, MIN_NEIGHBOURS)
 const NEIGHBOUR_LIMIT_MUL: usize = 10;
@@ -98,6 +97,19 @@ impl GraphDB {
                 error!("Read connection error: {}", e);
             }
         });
+        let db_version: i32 = read_client
+            .query_one("SELECT v FROM version", &[])
+            .await
+            .map_err(|e| format!("Failed to query db version: {}", e))?
+            .get(0);
+        if db_version != shared::DB_SCHEMA_VERSION {
+            error!(
+                "Wrong database version (read-only): expected {}, found {}",
+                shared::DB_SCHEMA_VERSION,
+                db_version
+            );
+            return Err("Wrong database version".into());
+        }
         let get_before = read_client
             .prepare(
                 "
@@ -132,7 +144,7 @@ impl GraphDB {
         let write_config = &config.write_db;
         let mut pgcfg = tokio_postgres::Config::new();
         pgcfg
-            .application_name("director_ro")
+            .application_name("director_rw")
             .dbname(&write_config.dbname)
             .host(&write_config.host)
             .port(write_config.port)
@@ -156,6 +168,19 @@ impl GraphDB {
             "Connected to GraphDB {} at {}:{} in read-write mode",
             read_config.dbname, read_config.host, read_config.port
         );
+        let db_version: i32 = write_client
+            .query_one("SELECT v FROM version", &[])
+            .await
+            .map_err(|e| format!("Failed to query db version: {}", e))?
+            .get(0);
+        if db_version != shared::DB_SCHEMA_VERSION {
+            error!(
+                "Wrong database version (read-write): expected {}, found {}",
+                shared::DB_SCHEMA_VERSION,
+                db_version
+            );
+            return Err("Wrong database version".into());
+        }
         let save_actions = write_client
             .prepare("INSERT INTO results (work_id, actions) VALUES ($1, $2)")
             .await?;
@@ -192,18 +217,18 @@ impl GraphDB {
                     continue;
                 }
             };
-            if VERSION < scenario.min_ver {
+            if shared::SCN_VERSION < scenario.min_ver {
                 warn!(
                     "Scenario {} (id {}) skipped due to unsatisfied minimum version requirements ({} < {})",
-                    scenario.name, id, VERSION, scenario.min_ver
+                    scenario.name, id, shared::SCN_VERSION, scenario.min_ver
                 );
                 continue;
             }
             if let Some(max_ver) = scenario.max_ver {
-                if VERSION > max_ver {
+                if shared::SCN_VERSION > max_ver {
                     warn!(
                         "Scenario {} (id {}) skipped due to unsatisfied maximum version requirements ({} > {})",
-                        scenario.name, id, VERSION, max_ver
+                        scenario.name, id, shared::SCN_VERSION, max_ver
                     );
                 }
                 continue;

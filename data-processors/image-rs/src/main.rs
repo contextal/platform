@@ -6,6 +6,7 @@ use backend_utils::objects::{
 use exif::In;
 use flate2::read::GzDecoder;
 use image::{DynamicImage, GenericImage, ImageError, RgbaImage};
+use imageproc::filter::laplacian_filter;
 use ocr_rs::{Dpi, TessBaseApi, TessPageSegMode};
 use resvg::tiny_skia;
 use resvg::usvg::{self, fontdb, Options, Size};
@@ -60,6 +61,9 @@ fn process_request(
         Err(e) => return Err(e),
     };
 
+    let blur_treshold = 100_f64;
+    let blurred = image_info.metadata.laplacian_variance < Some(blur_treshold);
+
     let object_metadata = match serde_json::to_value(image_info.metadata).unwrap() {
         serde_json::Value::Object(v) => v,
         _ => unreachable!(),
@@ -111,6 +115,9 @@ fn process_request(
     if limits_reached {
         symbols.push("LIMITS_REACHED".to_string());
     }
+    if blurred {
+        symbols.push("BLURRED".to_string());
+    }
 
     Ok(BackendResultKind::ok(BackendResultOk {
         symbols,
@@ -135,6 +142,7 @@ struct ImageInfoMetadata {
     exif: Option<Exif>,
     nsfw_predictions: Option<HashMap<String, f64>>,
     nsfw_verdict: Option<String>,
+    laplacian_variance: Option<f64>,
 }
 
 #[derive(Serialize)]
@@ -602,6 +610,10 @@ impl ImageInfo {
             (None, None)
         };
 
+        let gray = image.grayscale().to_luma8();
+        let laplacian = laplacian_filter(&gray);
+        let laplacian_variance = variance(laplacian.as_raw());
+
         let metadata = ImageInfoMetadata {
             format,
             pixel_format,
@@ -610,6 +622,7 @@ impl ImageInfo {
             exif,
             nsfw_predictions,
             nsfw_verdict,
+            laplacian_variance,
         };
 
         Ok(ImageInfo { metadata, ocr })
@@ -633,6 +646,29 @@ fn perform_ocr(image: &DynamicImage, tesseract: &TessBaseApi) -> Result<String, 
     })?;
 
     Ok(text.trim().to_string())
+}
+
+fn mean(data: &[i16]) -> Option<f64> {
+    if data.is_empty() {
+        return None;
+    }
+    let sum = data.iter().map(|v| f64::from(*v)).sum::<f64>();
+    let count = f64::from(u32::try_from(data.len()).ok()?);
+    Some(sum / count)
+}
+
+fn variance(data: &[i16]) -> Option<f64> {
+    let data_mean = mean(data)?;
+    let count = f64::from(u32::try_from(data.len()).ok()?);
+    let variance = data
+        .iter()
+        .map(|value| {
+            let diff = data_mean - f64::from(*value);
+            diff * diff
+        })
+        .sum::<f64>()
+        / count;
+    Some(variance)
 }
 
 #[cfg(test)]

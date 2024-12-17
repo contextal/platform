@@ -392,13 +392,18 @@ impl WorkManager {
                 Ok(clamd_symbols) => {
                     if !clamd_symbols.is_empty() {
                         debug!("Merged {} symbols from clamd", clamd_symbols.len());
-                        for sym in clamd_symbols
-                            .into_iter()
-                            .map(|s| format!("INFECTED-CLAM-{}", s))
-                        {
-                            res.symbols.push(sym);
+                        let mut infected = false;
+                        for sym in clamd_symbols {
+                            if sym.starts_with("ContexQL.") {
+                                res.symbols.push(sym);
+                            } else {
+                                infected = true;
+                                res.symbols.push(format!("INFECTED-CLAM-{}", sym));
+                            }
                         }
-                        res.symbols.push("INFECTED".to_string());
+                        if infected {
+                            res.symbols.push("INFECTED".to_string());
+                        }
                     }
                 }
             }

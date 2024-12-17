@@ -31,6 +31,7 @@ use tempfile::{tempfile, NamedTempFile, TempPath};
 use time::{Duration, OffsetDateTime};
 use tracing::{debug, instrument, warn};
 use tracing_subscriber::prelude::*;
+use url::Url;
 use vba::{
     forms::{Control, ParentControl},
     ModuleGeneric, ModuleTrait, ProjectTrait, Vba, VbaDocument,
@@ -119,10 +120,6 @@ fn process_request(
         symbols.push("DECRYPTED".to_string());
     }
 
-    if processing_result.limits_reached {
-        symbols.push("LIMITS_REACHED".to_string());
-    }
-
     let mut children = Vec::<BackendResultChild>::new();
     for mut child in processing_result.children {
         let path = match child.file {
@@ -153,12 +150,78 @@ fn process_request(
         });
     }
 
-    let object_metadata = match serde_json::to_value(processing_result.metadata)
+    let mut unique_hosts = Vec::<String>::new();
+    let mut unique_domains = Vec::<String>::new();
+    for input in &processing_result.metadata.hyperlinks {
+        if let Ok(url) = Url::parse(input) {
+            if let Some(host) = url.host_str() {
+                unique_hosts.push(host.to_string());
+                if let Ok(domain) = addr::parse_domain_name(host) {
+                    if let Some(root) = domain.root() {
+                        unique_domains.push(root.to_string());
+                    }
+                }
+            }
+        }
+    }
+    unique_hosts.sort_unstable();
+    unique_hosts.dedup();
+    unique_domains.sort_unstable();
+    unique_domains.dedup();
+    let mut limits_reached = processing_result.limits_reached;
+    if config.create_domain_children {
+        for domain in unique_domains.iter() {
+            if children.len() >= config.max_children as usize {
+                limits_reached = true;
+                break;
+            }
+            let mut domain_file = tempfile::NamedTempFile::new_in(&config.output_path)?;
+            if domain_file.write_all(&domain.clone().into_bytes()).is_ok() {
+                children.push(BackendResultChild {
+                    path: Some(
+                        domain_file
+                            .into_temp_path()
+                            .keep()
+                            .unwrap()
+                            .into_os_string()
+                            .into_string()
+                            .unwrap(),
+                    ),
+                    force_type: Some("Domain".to_string()),
+                    symbols: vec![],
+                    relation_metadata: match serde_json::to_value(DomainMetadata {
+                        name: domain.clone(),
+                    })? {
+                        serde_json::Value::Object(v) => v,
+                        _ => unreachable!(),
+                    },
+                });
+            }
+        }
+    }
+
+    if limits_reached {
+        symbols.push("LIMITS_REACHED".to_string());
+    }
+
+    let mut object_metadata = match serde_json::to_value(processing_result.metadata)
         .map_err(|e| format!("failed to serialize Metadata: {e}"))?
     {
         serde_json::Value::Object(v) => v,
         _ => unreachable!(),
     };
+    if !unique_hosts.is_empty() {
+        object_metadata.insert(
+            "unique_hosts".to_string(),
+            serde_json::to_value(unique_hosts)?,
+        );
+    }
+    if !unique_domains.is_empty() {
+        object_metadata.insert(
+            "unique_domains".to_string(),
+            serde_json::to_value(unique_domains)?,
+        );
+    }
 
     let result = BackendResultKind::ok(BackendResultOk {
         symbols,
@@ -1554,6 +1617,11 @@ impl Serialize for OffsetDateTimeWrapper {
     {
         serializer.serialize_str(&self.0.to_string())
     }
+}
+
+#[derive(Serialize)]
+struct DomainMetadata {
+    name: String,
 }
 
 fn get_ole_properties<R: Read + Seek>(

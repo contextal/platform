@@ -24,6 +24,8 @@ pub struct Config {
     pub objects_path: String,
     /// Output path
     pub output_path: String,
+    /// Whether to create Domain children
+    pub create_domain_children: bool,
 }
 
 impl Config {

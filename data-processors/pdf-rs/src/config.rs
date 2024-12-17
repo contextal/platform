@@ -84,6 +84,9 @@ pub struct Config {
 
     /// Single object limit (the part is skipped if size is exceeded)
     pub max_child_output_size: u64,
+
+    /// Whether to create URL children
+    pub create_domain_children: bool,
 }
 
 impl Config {

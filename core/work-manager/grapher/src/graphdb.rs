@@ -36,7 +36,7 @@ impl GraphDB {
             .user(&config.user)
             .password(&config.pass)
             .target_session_attrs(tokio_postgres::config::TargetSessionAttrs::ReadWrite);
-        let (client, conn) = pgcfg.connect(tokio_postgres::NoTls).await.map_err(|e| {
+        let (mut client, conn) = pgcfg.connect(tokio_postgres::NoTls).await.map_err(|e| {
             error!(
                 "Failed to connect to graph database {} at {}:{}: {}",
                 config.dbname, config.host, config.port, e
@@ -51,12 +51,18 @@ impl GraphDB {
             }
         });
 
+        if let Err(e) = apply_migrations("migrations", &mut client).await {
+            error!("Database migration failed");
+            error!(e);
+            return Err(e);
+        }
+
         let node_stmt = client
             .prepare(
                 "INSERT INTO objects (
                   org, work_id, is_entry, object_id, object_type, object_subtype,
-                  recursion_level, size, hashes, t, result
-              ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, to_timestamp($10), $11)
+                  recursion_level, size, hashes, t, result, entropy
+              ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, to_timestamp($10), $11, $12)
               RETURNING id",
             )
             .await
@@ -118,14 +124,13 @@ impl GraphDB {
                 rel_stmt: &tokio_postgres::Statement,
             ) -> Result<(i64, Vec<JobResult>), Box<dyn std::error::Error + Send + Sync>>
             {
-                let size = i64::try_from(node.info.size).map_err(|e| {
+                let size = i64::try_from(node.info.size).inspect_err(|e| {
                     error!("Object size too large: {}", e);
-                    e
                 })?;
-                let recursion_level = i32::try_from(node.info.recursion_level).map_err(|e| {
-                    error!("Rerecursion level too large: {}", e);
-                    e
-                })?;
+                let recursion_level =
+                    i32::try_from(node.info.recursion_level).inspect_err(|e| {
+                        error!("Rerecursion level too large: {}", e);
+                    })?;
                 // Remove and return children from OK results
                 let mut result_json = serde_json::json!(&node.result);
                 let children: Vec<JobResult> = if let JobResultKind::ok(mut okres) = node.result {
@@ -154,6 +159,7 @@ impl GraphDB {
                             &hashes_json,              // hashes
                             &node.info.ctime,          // t
                             &result_json,              // result
+                            &node.info.entropy,        // entropy
                         ],
                     )
                     .await
@@ -285,6 +291,77 @@ fn replace_nul(json: &mut serde_json::Value) {
     }
 }
 
+async fn apply_migrations<P: AsRef<std::path::Path>>(
+    migrations_dir: P,
+    db: &mut tokio_postgres::Client,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let txn = db
+        .transaction()
+        .await
+        .map_err(|e| format!("Failed to start migration transaction: {}", e))?;
+    txn.execute("CREATE TABLE IF NOT EXISTS version(v int NOT NULL)", &[])
+        .await
+        .map_err(|e| format!("Failed to create version table: {}", e))?;
+    txn.execute("LOCK TABLE version", &[])
+        .await
+        .map_err(|e| format!("Failed to lock version table: {}", e))?;
+    txn.execute(
+        "INSERT INTO VERSION SELECT 0 WHERE NOT EXISTS (SELECT 1 FROM version)",
+        &[],
+    )
+    .await
+    .map_err(|e| format!("Failed to initialize version table: {}", e))?;
+    let current_version: i32 = txn
+        .query_one("SELECT v FROM version", &[])
+        .await
+        .map_err(|e| format!("Failed to determine the current database version: {}", e))?
+        .get(0);
+    if current_version < 0 {
+        return Err(format!("Invalid database version: {}", current_version).into());
+    }
+    if current_version > shared::DB_SCHEMA_VERSION {
+        return Err(format!(
+            "The database version is newer than ours: our version {}, current version {}",
+            shared::DB_SCHEMA_VERSION,
+            current_version
+        )
+        .into());
+    }
+    for migration in 0..shared::DB_SCHEMA_VERSION {
+        if migration < current_version {
+            debug!("Skipping migration {} (already present)", migration);
+            continue;
+        }
+        let migration_file = migrations_dir
+            .as_ref()
+            .join(format!("{:06}.sql", migration));
+        let migration_body = std::fs::read_to_string(&migration_file).map_err(|e| {
+            format!(
+                "Failed to find migration file {}: {}",
+                migration_file.display(),
+                e
+            )
+        })?;
+        debug!("Applying migration {}...", migration);
+        txn.batch_execute(&migration_body)
+            .await
+            .map_err(|e| format!("Failed to apply migration {}: {}", migration, e))?;
+        txn.execute("UPDATE version SET v = $1", &[&(migration + 1)])
+            .await
+            .map_err(|e| {
+                format!(
+                    "Failed to bump database version to {}: {}",
+                    migration + 1,
+                    e
+                )
+            })?;
+    }
+    txn.commit()
+        .await
+        .map_err(|e| format!("Failed to commit database migrations: {}", e))?;
+    Ok(())
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
@@ -330,5 +407,31 @@ mod test {
             format!("nul{NUL_REPLACEMENT}key"): "someval"
         });
         assert_eq!(json, refjson);
+    }
+
+    #[test]
+    fn test_migration_files() -> Result<(), std::io::Error> {
+        let project_dir = std::env::var("CARGO_MANIFEST_DIR")
+            .expect("CARGO_MANIFEST_DIR environment variable should be set");
+        let migration_dir = std::path::Path::new(&project_dir).join("migrations");
+        for migration in 0..shared::DB_SCHEMA_VERSION {
+            let fname = migration_dir.join(format!("{:06}.sql", migration));
+            if let Err(e) = std::fs::read_to_string(&fname) {
+                panic!(
+                    "Migration file {} is missing or not readable: {}",
+                    fname.display(),
+                    e
+                );
+            }
+        }
+        for migration in shared::DB_SCHEMA_VERSION..(shared::DB_SCHEMA_VERSION + 10) {
+            let fname = migration_dir.join(format!("{:06}.sql", migration));
+            assert!(
+                !std::fs::exists(&fname)?,
+                "Found migration file {} which is greater than the current version",
+                fname.display(),
+            );
+        }
+        Ok(())
     }
 }

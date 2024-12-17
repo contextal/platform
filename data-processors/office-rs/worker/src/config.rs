@@ -27,6 +27,8 @@ pub struct Config {
     pub sheet_size_limit: u64,
     /// Maximum shared strings xml file size allowed to be cached in memory
     pub shared_strings_cache_limit: u64,
+    /// Whether to create URL children
+    pub create_domain_children: bool,
 }
 
 impl Config {

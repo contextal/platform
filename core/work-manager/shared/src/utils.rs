@@ -33,3 +33,34 @@ pub fn random_string(len: usize) -> String {
 pub fn get_queue_for(object_type: &str) -> String {
     format!("CTX-JobReq-{}", object_type.to_uppercase())
 }
+
+// Create a tempfile in the indicated path
+// Note: leaking tempfiles is possible if we get killed; a proper approach
+// would use O_TMPFILE + re-linking via /proc but it has too strong requirements
+// in terms of OS and FS
+pub async fn mktemp<P: AsRef<std::path::Path>>(
+    directory: P,
+    with_extension: Option<&str>,
+) -> Result<(std::path::PathBuf, tokio::fs::File), std::io::Error> {
+    let directory = directory.as_ref();
+    loop {
+        let fname = directory.join(random_string(32) + with_extension.unwrap_or(""));
+        let open_res = tokio::fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&fname)
+            .await;
+        match open_res {
+            Ok(res) => return Ok((fname, res)),
+            Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => continue,
+            Err(e) => {
+                error!(
+                    "Failed to create new temporary file {}: {}",
+                    fname.display(),
+                    e
+                );
+                return Err(e);
+            }
+        }
+    }
+}

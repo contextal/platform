@@ -1,7 +1,10 @@
 use actix_multipart::form;
 use actix_web::web;
 use futures::stream::TryStreamExt;
-use shared::object::{mktemp, Hasher, Info, OBJECT_ID_HASH_TYPE};
+use shared::{
+    object::{Hasher, Info, ShannonEntropy, OBJECT_ID_HASH_TYPE},
+    utils,
+};
 use std::{
     future::Future,
     pin::Pin,
@@ -18,9 +21,10 @@ use tracing::{debug, error};
 /// This struct provides the facilities to do this atomically
 pub struct TempObject {
     f: tokio::fs::File,
-    name: String,
+    name: std::path::PathBuf,
     hashes: Hasher,
-    objects_path: String,
+    ent: ShannonEntropy,
+    objects_path: std::path::PathBuf,
     ctime: f64,
 }
 
@@ -30,19 +34,24 @@ impl TempObject {
             .elapsed()
             .unwrap()
             .as_secs_f64();
-        let (name, f) = mktemp(objects_path).await?;
+        let (name, f) = utils::mktemp(objects_path, None).await?;
         Ok(Self {
             f,
             name,
             hashes: Hasher::new(),
-            objects_path: objects_path.to_string(),
+            ent: ShannonEntropy::new(),
+            objects_path: objects_path.into(),
             ctime,
         })
     }
 
     pub async fn into_object(mut self, org: &str) -> Result<Info, Box<dyn std::error::Error>> {
         self.f.flush().await.map_err(|e| {
-            error!("Failed to flush temp file \"{}\": {}", self.name, e);
+            error!(
+                "Failed to flush temp file \"{}\": {}",
+                self.name.display(),
+                e
+            );
             e
         })?;
         let size = self
@@ -50,18 +59,24 @@ impl TempObject {
             .metadata()
             .await
             .map_err(|e| {
-                error!("Failed to get size of temp file \"{}\": {}", self.name, e);
+                error!(
+                    "Failed to get size of temp file \"{}\": {}",
+                    self.name.display(),
+                    e
+                );
                 e
             })?
             .len();
         let hashes = self.hashes.into_map();
         let object_id = hashes[OBJECT_ID_HASH_TYPE].clone();
-        let obj_fname = format!("{}/{}", self.objects_path, object_id);
+        let obj_fname = self.objects_path.join(&object_id);
         let move_res = tokio::fs::rename(&self.name, &obj_fname).await;
         if let Err(e) = move_res {
             error!(
                 "Failed to rename \"{}\" to \"{}\": {}",
-                self.name, obj_fname, e
+                self.name.display(),
+                obj_fname.display(),
+                e
             );
             tokio::fs::remove_file(&self.name).await.ok();
             Err(e.into())
@@ -74,6 +89,7 @@ impl TempObject {
                 recursion_level: 1,
                 size,
                 hashes,
+                entropy: Some(self.ent.entropy()),
                 ctime: self.ctime,
             })
         }
@@ -94,8 +110,15 @@ impl AsyncWrite for TempObject {
         let res = Pin::new(&mut me.f).poll_write(cx, buf);
         if let Poll::Ready(res) = &res {
             match res {
-                Ok(sz) => me.hashes.update(&buf[0..*sz]),
-                Err(e) => error!("Failed to write to temp file \"{}\": {}", me.name, e),
+                Ok(sz) => {
+                    me.hashes.update(&buf[0..*sz]);
+                    me.ent.update(&buf[0..*sz]);
+                }
+                Err(e) => error!(
+                    "Failed to write to temp file \"{}\": {}",
+                    me.name.display(),
+                    e
+                ),
             }
         }
         res
@@ -152,7 +175,7 @@ impl<'t> form::FieldReader<'t> for TempObject {
             debug!(
                 "Dumping field {} to temporary location {}",
                 field.name(),
-                tmpf.name
+                tmpf.name.display()
             );
             if let Err(e) = dump_field(&mut tmpf, &mut field, limits).await {
                 error!("Failed to write temporary file: {e}");

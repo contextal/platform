@@ -33,3 +33,4 @@ output_path = "/tmp"
 
 max_children = 100
 max_child_output_size = 41943040
+create_domain_children=true

@@ -63,7 +63,9 @@ impl Clamd {
             .filter_map(|line| {
                 let mut parts = line.split(' ');
                 if parts.next_back() == Some("FOUND") {
-                    parts.next_back().map(|s| s.to_string())
+                    parts
+                        .next_back()
+                        .map(|s| s.strip_suffix(".UNOFFICIAL").unwrap_or(s).to_string())
                 } else {
                     None
                 }
@@ -117,8 +119,7 @@ impl Typedet {
         objects_path: &str,
     ) -> Result<(), Box<dyn std::error::Error>> {
         let start = std::time::Instant::now();
-        const UNOFF: &str = ".UNOFFICIAL";
-        let mut ftype = self
+        let ftype = self
             .clamd
             .get_symbol(&object.object_id)
             .await
@@ -130,9 +131,6 @@ impl Typedet {
                 e
             })?
             .unwrap_or_else(|| "UNKNOWN".to_string());
-        if ftype.ends_with(UNOFF) {
-            ftype.truncate(ftype.len() - UNOFF.len());
-        }
         debug!("Typedet for object \"{}\": {:?}", object.object_id, ftype);
         object.set_type(&ftype);
         Self::refine_object_type(object, objects_path).await?;

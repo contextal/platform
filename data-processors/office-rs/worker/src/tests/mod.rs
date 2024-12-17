@@ -663,6 +663,7 @@ impl TestEnvironment {
             max_child_output_size: 50000,
             sheet_size_limit: 50000,
             shared_strings_cache_limit: 50000,
+            create_domain_children: true,
         };
         TestEnvironment {
             _temp_dir: temp_dir,
@@ -772,6 +773,9 @@ fn verify_encryption_symbols(result: &BackendResultOk, encrypted: bool, decrypte
     assert_eq!(result.symbols.contains(&"ENCRYPTED".to_string()), encrypted);
     assert_eq!(result.symbols.contains(&"DECRYPTED".to_string()), decrypted);
     for child in &result.children {
+        if child.force_type == Some("Domain".to_string()) {
+            continue;
+        }
         assert_eq!(child.symbols.contains(&"ENCRYPTED".to_string()), encrypted);
         assert_eq!(child.symbols.contains(&"DECRYPTED".to_string()), decrypted);
     }

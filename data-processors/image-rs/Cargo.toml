@@ -1,6 +1,6 @@
 [package]
 name = "image-rs"
-version = "1.0.0"
+version = "1.1.0"
 edition = "2021"
 homepage = "https://contextal.com/"
 license = "GPL-3.0-only"
@@ -16,6 +16,7 @@ serde_json = "1.0"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3.17", features = ["env-filter"] }
 image = "0.25.0"
+imageproc = "0.25.0"
 kamadak-exif = "0.5.5"
 tempfile = "3.8.0"
 resvg = "0.42.0"

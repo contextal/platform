@@ -24,11 +24,17 @@ struct HtmlMeta<'a> {
     img_src: Vec<String>,
     img_data_src: Vec<String>,
     unique_hosts: Vec<String>,
+    unique_domains: Vec<String>,
     input_types: Vec<String>,
     tag_counters: HashMap<&'a str, usize>,
     tag_count: usize,
     forms: Vec<HashMap<&'a str, &'a str>>,
     scripts: Vec<HashMap<&'a str, &'a str>>,
+}
+
+#[derive(Serialize)]
+struct DomainMetadata {
+    name: String,
 }
 
 macro_rules! chkpush {
@@ -115,6 +121,7 @@ fn process_html(
     max_processed_size: u64,
     max_child_output_size: u64,
     max_children: u32,
+    process_domains: bool,
 ) -> Result<BackendResultKind, Error> {
     let mut children: Vec<BackendResultChild> = Vec::new();
     let mut limits_reached = false;
@@ -400,8 +407,9 @@ fn process_html(
     script_src.sort_unstable();
     script_src.dedup();
 
-    // determine unique hosts
+    // determine unique hosts and domains
     let mut unique_hosts = vec![];
+    let mut unique_domains = vec![];
     for n in href
         .iter()
         .chain(img_src.iter())
@@ -411,11 +419,18 @@ fn process_html(
         if let Ok(url) = Url::parse(n) {
             if let Some(host) = url.host_str() {
                 unique_hosts.push(host.to_string());
+                if let Ok(domain) = addr::parse_domain_name(host) {
+                    if let Some(root) = domain.root() {
+                        unique_domains.push(root.to_string());
+                    }
+                }
             }
         }
     }
     unique_hosts.sort_unstable();
     unique_hosts.dedup();
+    unique_domains.sort_unstable();
+    unique_domains.dedup();
 
     // extract text
     let text_tags = [
@@ -506,6 +521,40 @@ fn process_html(
         }
     }
 
+    // create Domain children
+    if process_domains {
+        if let Some(path) = output_path {
+            for domain in unique_domains.iter() {
+                if children.len() >= max_children as usize {
+                    limits_reached = true;
+                    break;
+                }
+                let mut domain_file = tempfile::NamedTempFile::new_in(path)?;
+                if domain_file.write_all(&domain.clone().into_bytes()).is_ok() {
+                    children.push(BackendResultChild {
+                        path: Some(
+                            domain_file
+                                .into_temp_path()
+                                .keep()
+                                .unwrap()
+                                .into_os_string()
+                                .into_string()
+                                .unwrap(),
+                        ),
+                        force_type: Some("Domain".to_string()),
+                        symbols: vec![],
+                        relation_metadata: match serde_json::to_value(DomainMetadata {
+                            name: domain.clone(),
+                        })? {
+                            serde_json::Value::Object(v) => v,
+                            _ => unreachable!(),
+                        },
+                    });
+                }
+            }
+        }
+    }
+
     if limits_reached {
         symbols.push("LIMITS_REACHED".to_string());
     }
@@ -517,6 +566,7 @@ fn process_html(
         img_src,
         img_data_src,
         unique_hosts,
+        unique_domains,
         input_types,
         tag_counters,
         tag_count,
@@ -548,6 +598,7 @@ fn process_request(
         config.max_processed_size,
         config.max_child_output_size,
         config.max_children,
+        config.create_domain_children,
     )
 }
 
@@ -584,7 +635,7 @@ struct HtmlMetaOwned {
 #[test]
 fn parse_html() {
     let path = PathBuf::from("tests/test_data/test.html");
-    let brk = process_html(&path, None, 65535, 65535, 50).unwrap();
+    let brk = process_html(&path, None, 65535, 65535, 50, false).unwrap();
     let hm: HtmlMetaOwned;
     if let BackendResultKind::ok(br) = brk {
         hm = serde_json::from_value(serde_json::Value::Object(br.object_metadata)).unwrap();

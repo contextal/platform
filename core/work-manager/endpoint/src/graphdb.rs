@@ -2,6 +2,8 @@
 //!
 //! This module interacts with the GraphDB
 
+mod clam;
+
 use shared::{
     amqp::{JobResult, JobResultKind},
     scene,
@@ -23,9 +25,11 @@ pub struct CountResult {
 
 pub enum ScenaryError {
     Invalid(&'static str),
+    Signature(String),
     Database,
     Duplicate,
     NotFound,
+    Internal,
 }
 
 #[derive(serde::Serialize)]
@@ -76,6 +80,24 @@ impl GraphDB {
             "Connection pool created for GraphDB {} at {}:{}...",
             read_config.dbname, read_config.host, read_config.port
         );
+        let client = read_pool.get().await.map_err(|e| {
+            error!("Failed to get read-only connection from pool: {e}");
+            e
+        })?;
+        let db_version: i32 = client
+            .query_one("SELECT v FROM version", &[])
+            .await
+            .map_err(|e| format!("Failed to query db version: {}", e))?
+            .get(0);
+        if db_version != shared::DB_SCHEMA_VERSION {
+            error!(
+                "Wrong database version (read-only): expected {}, found {}",
+                shared::DB_SCHEMA_VERSION,
+                db_version
+            );
+            return Err("Wrong database version".into());
+        }
+
         let write_config = &config.write_db;
         let mut pgcfg = tokio_postgres::Config::new();
         pgcfg
@@ -101,6 +123,23 @@ impl GraphDB {
             "Connection pool created for Scenarios DB {} at {}:{}...",
             write_config.dbname, write_config.host, write_config.port
         );
+        let client = write_pool.get().await.map_err(|e| {
+            error!("Failed to get read-write connection from pool: {e}");
+            e
+        })?;
+        let db_version: i32 = client
+            .query_one("SELECT v FROM version", &[])
+            .await
+            .map_err(|e| format!("Failed to query db version: {}", e))?
+            .get(0);
+        if db_version != shared::DB_SCHEMA_VERSION {
+            error!(
+                "Wrong database version (read-write): expected {}, found {}",
+                shared::DB_SCHEMA_VERSION,
+                db_version
+            );
+            return Err("Wrong database version".into());
+        }
         Ok(Self {
             read_pool,
             write_pool,
@@ -136,7 +175,7 @@ impl GraphDB {
         }
 
         let client = self.read_pool.get().await.map_err(|e| {
-            error!("Failed to get connection from pool: {e}");
+            error!("Failed to get read-only connection from pool: {e}");
             e
         })?;
         let get_parent_stmt = client
@@ -145,7 +184,7 @@ impl GraphDB {
                    objects.id, objects.org, objects.object_id,
                    objects.object_type, objects.object_subtype,
                    objects.recursion_level, objects.size, objects.hashes, objects.t,
-                   objects.result, rels.props AS relation_metadata
+                   objects.entropy, objects.result, rels.props AS relation_metadata
                  FROM objects
                  LEFT JOIN rels ON objects.id = rels.child
                  WHERE objects.work_id = $1 AND objects.is_entry",
@@ -161,7 +200,7 @@ impl GraphDB {
                    objects.id, objects.org, objects.object_id,
                    objects.object_type, objects.object_subtype,
                    objects.recursion_level, objects.size, objects.hashes, objects.t,
-                   objects.result, rels.props AS relation_metadata
+                   objects.entropy, objects.result, rels.props AS relation_metadata
                  FROM objects, rels
                  WHERE objects.id = rels.child AND rels.parent = $1
                  ORDER BY objects.id",
@@ -204,7 +243,7 @@ impl GraphDB {
             max_items
         );
         let mut client = self.read_pool.get().await.map_err(|e| {
-            error!("Failed to get connection from pool: {e}");
+            error!("Failed to get read-only connection from pool: {e}");
             SearchError::Internal
         })?;
         let txn = client.transaction().await.map_err(|e| {
@@ -256,7 +295,7 @@ impl GraphDB {
             parsed
         );
         let mut client = self.read_pool.get().await.map_err(|e| {
-            error!("Failed to get connection from pool: {e}");
+            error!("Failed to get read-only connection from pool: {e}");
             SearchError::Internal
         })?;
         let txn = client.transaction().await.map_err(|e| {
@@ -312,8 +351,9 @@ impl GraphDB {
             return Err(ScenaryError::Invalid("Invalid action"));
         }
         if pgrules::parse_to_sql(&scenario.local_query).is_err() {
-            return Err(ScenaryError::Invalid("Invalid main rule"));
+            return Err(ScenaryError::Invalid("Invalid local rule"));
         }
+        clam::find_invalid_patttern(&scenario.local_query).await?;
         if let Some(context) = &scenario.context {
             if context.min_matches == 0 {
                 return Err(ScenaryError::Invalid("Invalid min_matches"));
@@ -321,9 +361,10 @@ impl GraphDB {
             if pgrules::parse_to_sql(&context.global_query).is_err() {
                 return Err(ScenaryError::Invalid("Invalid context rule"));
             }
+            clam::find_invalid_patttern(&context.global_query).await?;
         }
         let mut client = self.write_pool.get().await.map_err(|e| {
-            error!("Failed to get connection from pool: {e}");
+            error!("Failed to get read-write connection from pool: {e}");
             ScenaryError::Database
         })?;
         let json_scenario = serde_json::to_value(scenario);
@@ -389,7 +430,7 @@ impl GraphDB {
 
     pub async fn del_scenario(&self, id: i64) -> Result<bool, ()> {
         let client = self.write_pool.get().await.map_err(|e| {
-            error!("Failed to get connection from pool: {e}");
+            error!("Failed to get read-write connection from pool: {e}");
         })?;
         let stmt = client
             .prepare_cached("DELETE FROM scenarios WHERE id = $1")
@@ -408,7 +449,7 @@ impl GraphDB {
         id: i64,
     ) -> Result<Option<scene::Scenario>, Box<dyn std::error::Error>> {
         let client = self.read_pool.get().await.map_err(|e| {
-            error!("Failed to get connection from pool: {e}");
+            error!("Failed to get read-only connection from pool: {e}");
             e
         })?;
         let stmt = client
@@ -439,7 +480,7 @@ impl GraphDB {
 
     pub async fn list_scenarios(&self) -> Result<Vec<ScenarioDetails>, Box<dyn std::error::Error>> {
         let client = self.read_pool.get().await.map_err(|e| {
-            error!("Failed to get connection from pool: {e}");
+            error!("Failed to get read-only connection from pool: {e}");
             e
         })?;
         let stmt = client
@@ -483,7 +524,7 @@ impl GraphDB {
         count: u32,
     ) -> Result<Vec<shared::scene::WorkActions>, Box<dyn std::error::Error>> {
         let client = self.read_pool.get().await.map_err(|e| {
-            error!("Failed to get connection from pool: {e}");
+            error!("Failed to get read-only connection from pool: {e}");
             e
         })?;
         let stmt = client
@@ -544,6 +585,7 @@ fn row2info(row: &tokio_postgres::Row) -> Result<shared::object::Info, Box<dyn s
         recursion_level: row.try_get::<_, i32>("recursion_level")? as u32,
         size: row.try_get::<_, i64>("size")? as u64,
         hashes: serde_json::from_value(row.try_get("hashes")?)?,
+        entropy: row.try_get("entropy")?,
         ctime: row
             .try_get::<_, std::time::SystemTime>("t")?
             .duration_since(std::time::UNIX_EPOCH)?

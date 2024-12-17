@@ -56,6 +56,12 @@ pub const META_KEY_ORIGIN: &str = "_origin";
 /// The relation metatadata origin key controlling work reprocession
 pub const META_KEY_REPROCESSABLE: &str = "_can_reprocess";
 
+/// The expected database version
+pub const DB_SCHEMA_VERSION: i32 = 2;
+
+/// The current scenario engine version
+pub const SCN_VERSION: u16 = 1;
+
 pub fn time_to_f64<S: Serializer>(
     time: &std::time::SystemTime,
     serializer: S,

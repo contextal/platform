@@ -19,6 +19,9 @@ pub struct Config {
     /// Maximum allowed input file size in bytes.
     pub max_processed_size: u64,
 
+    /// Maximum bumber of children to create
+    pub max_children: u32,
+
     /// Maximum number_of_characters / number_of_whitespaces ratio to consider
     /// for running the natural language detection.
     pub natural_language_max_char_whitespace_ratio: f64,
@@ -28,6 +31,9 @@ pub struct Config {
 
     /// Whether to create URL children (currently only for OCR'd text)
     pub create_url_children: bool,
+
+    /// Whether to create Domain children
+    pub create_domain_children: bool,
 }
 
 impl Config {

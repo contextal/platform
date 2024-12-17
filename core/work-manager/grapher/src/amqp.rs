@@ -31,7 +31,7 @@ impl Broker {
     /// Creates a new broker interface
     pub async fn new(
         broker_cfg: &BrokerConfig,
-        graphdb: crate::graph::GraphDB,
+        graphdb: crate::graphdb::GraphDB,
     ) -> Result<Self, Box<dyn std::error::Error>> {
         // Describe metrics
         metrics::describe_counter!(WORK_COUNT, "Total number of work requests processed");
@@ -140,7 +140,7 @@ impl Broker {
 }
 
 #[async_trait::async_trait]
-impl AsyncConsumer for crate::graph::GraphDB {
+impl AsyncConsumer for crate::graphdb::GraphDB {
     /// Retrieves the first available work result from the queue
     ///
     /// It additionally validates the message, its properties and body; non conformant

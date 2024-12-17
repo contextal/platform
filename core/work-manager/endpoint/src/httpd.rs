@@ -431,6 +431,11 @@ struct AddScenarioParamsV1 {
     replace_id: Option<i64>,
 }
 
+#[derive(Serialize)]
+/// The error returned in case a ClamAV pattern is rejected
+struct PatternError {
+    pattern_error: String,
+}
 /// Add scenario
 #[route("/api/v1/scenarios", method = "POST", method = "PUT")]
 async fn add_scenario_v1(
@@ -445,11 +450,19 @@ async fn add_scenario_v1(
         Ok(s) => HttpResponse::Created().json(s),
         Err(e) => match e {
             graphdb::ScenaryError::Invalid(e) => HttpResponse::BadRequest().body(e),
+            graphdb::ScenaryError::Signature(p) => {
+                HttpResponse::BadRequest().json(PatternError { pattern_error: p })
+            }
             graphdb::ScenaryError::Duplicate => HttpResponse::Conflict().body("Scenario exists"),
             graphdb::ScenaryError::NotFound => {
                 HttpResponse::NotFound().body("The scenario identified by replace_id was not found")
             }
-            _ => HttpResponse::InternalServerError().body("Internal error: database error"),
+            graphdb::ScenaryError::Database => {
+                HttpResponse::InternalServerError().body("Internal error: database error")
+            }
+            graphdb::ScenaryError::Internal => {
+                HttpResponse::InternalServerError().body("Internal error: IO error")
+            }
         },
     }
 }

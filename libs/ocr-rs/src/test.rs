@@ -49,7 +49,7 @@ fn string1_png() {
 
 #[test]
 fn all_word_confidences() {
-    let image = image::io::Reader::new(BufReader::new(
+    let image = image::ImageReader::new(BufReader::new(
         File::open("tests/test_data/string1.png").unwrap(),
     ))
     .with_guessed_format()

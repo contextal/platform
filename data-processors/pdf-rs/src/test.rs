@@ -302,7 +302,7 @@ fn smoke_children_count() {
 
     assert_eq!(
         backend_result.children.len(),
-        4,
+        6,
         "An unexpected number of children objects"
     );
 
@@ -372,7 +372,7 @@ fn smoke_limits() {
     };
     assert_eq!(
         backend_result.children.len(),
-        4,
+        6,
         "An unexpected number of children objects"
     );
     assert_eq!(
@@ -484,7 +484,7 @@ fn smoke_correct_password() {
 
     assert_eq!(
         backend_result.children.len(),
-        5,
+        7,
         "An unexpected number of children objects"
     );
 }

@@ -5,3 +5,4 @@ sheet_size_limit = 5242880
 shared_strings_cache_limit = 10000000
 objects_path = "/var/lib/objects"
 output_path = "/tmp"
+create_domain_children = true

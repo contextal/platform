@@ -36,6 +36,7 @@ use std::{
 use tempfile::NamedTempFile;
 use tracing::{error, instrument, trace, warn};
 use tracing_subscriber::prelude::*;
+use url::Url;
 
 fn main() -> Result<(), PdfBackendError> {
     tracing_subscriber::registry()
@@ -104,6 +105,9 @@ struct Metadata {
 
     /// Password used to decrypt document
     password: Option<String>,
+
+    unique_hosts: Vec<String>,
+    unique_domains: Vec<String>,
 }
 
 /// Processes a PDF document.
@@ -495,6 +499,59 @@ fn process_request(
             }
         }
 
+        let uris: Vec<String> = links_uris
+            .extend(bookmarks_uris)
+            .extend(annotations_uris)
+            .into();
+
+        let mut unique_hosts = Vec::<String>::new();
+        let mut unique_domains = Vec::<String>::new();
+        for input in uris.iter() {
+            if let Ok(url) = Url::parse(input) {
+                if let Some(host) = url.host_str() {
+                    unique_hosts.push(host.to_string());
+                    if let Ok(domain) = addr::parse_domain_name(host) {
+                        if let Some(root) = domain.root() {
+                            unique_domains.push(root.to_string());
+                        }
+                    }
+                }
+            }
+        }
+        unique_hosts.sort_unstable();
+        unique_hosts.dedup();
+        unique_domains.sort_unstable();
+        unique_domains.dedup();
+        if config.create_domain_children {
+            for domain in unique_domains.iter() {
+                if children.limits_reached() {
+                    break;
+                }
+                let mut domain_file = tempfile::NamedTempFile::new_in(&config.output_path)?;
+                if domain_file.write_all(&domain.clone().into_bytes()).is_ok() {
+                    children.push(BackendResultChild {
+                        path: Some(
+                            domain_file
+                                .into_temp_path()
+                                .keep()
+                                .unwrap()
+                                .into_os_string()
+                                .into_string()
+                                .unwrap(),
+                        ),
+                        force_type: Some("Domain".to_string()),
+                        symbols: vec![],
+                        relation_metadata: match serde_json::to_value(DomainMetadata {
+                            domain: domain.clone(),
+                        })? {
+                            serde_json::Value::Object(v) => v,
+                            _ => unreachable!(),
+                        },
+                    })?;
+                }
+            }
+        }
+
         if !issues.is_empty() {
             symbols.insert("ISSUES");
         }
@@ -510,10 +567,7 @@ fn process_request(
             version,
             form_type,
             fonts: fonts_names,
-            uris: links_uris
-                .extend(bookmarks_uris)
-                .extend(annotations_uris)
-                .into(),
+            uris,
             embedded_thumbnails,
             paper_sizes_mm: document_context.paper_sizes.into(),
             number_of_annotations,
@@ -526,6 +580,8 @@ fn process_request(
             password,
             signatures: signatures.signatures,
             number_of_unreadable_signatures: signatures.number_of_unreadable_signatures,
+            unique_domains,
+            unique_hosts,
         };
 
         [
@@ -827,4 +883,9 @@ fn process_javascript(
     }
     bindings.FPDF_CloseDocument(document);
     result
+}
+
+#[derive(Serialize)]
+struct DomainMetadata {
+    domain: String,
 }

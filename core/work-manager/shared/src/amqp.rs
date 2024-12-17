@@ -1,7 +1,10 @@
 //! Shared AMQP utility functions and Job/Work result structures
 use amqprs::{
     callbacks::{ChannelCallback, ConnectionCallback},
-    channel::{BasicCancelArguments, BasicPublishArguments, Channel, QueueDeclareArguments},
+    channel::{
+        BasicCancelArguments, BasicPublishArguments, Channel, ExchangeDeclareArguments,
+        ExchangeType, QueueBindArguments, QueueDeclareArguments,
+    },
     connection::{Connection, OpenConnectionArguments},
     security::SecurityCredentials,
     BasicProperties, FieldTable, FieldValue, DELIVERY_MODE_PERSISTENT,
@@ -402,6 +405,62 @@ pub async fn request_apply_scenarios(
     channel
         .basic_publish(bprops, request_json.into_bytes(), args)
         .await
+}
+
+pub async fn declare_reload_queue(channel: &Channel) -> Result<String, Box<dyn std::error::Error>> {
+    // Declare reload exchange and queue
+    debug!(
+        "Declaring the reload exchange \"{}\"...",
+        crate::SC_RELOAD_EXCHANGE_NAME
+    );
+    channel
+        .exchange_declare(
+            ExchangeDeclareArguments::of_type(crate::SC_RELOAD_EXCHANGE_NAME, ExchangeType::Fanout)
+                .durable(true)
+                .finish(),
+        )
+        .await
+        .map_err(|e| {
+            error!("Failed to declare the reload exchange: {}", e);
+            e
+        })?;
+    let qargs = QueueDeclareArguments::default()
+        .exclusive(true)
+        .auto_delete(true)
+        .finish();
+    let (reload_queue, message_count, consumer_count) = channel
+        .queue_declare(qargs)
+        .await
+        .map_err(|e| {
+            error!("Failed to declare the reload queue: {}", e);
+            e
+        })?
+        .unwrap();
+    debug!(
+        "Reload queue \"{}\" successfully declared ({} messages, {} consumers)",
+        reload_queue, message_count, consumer_count
+    );
+
+    // Bind the reload queue to the reload exchange
+    channel
+        .queue_bind(QueueBindArguments::new(
+            &reload_queue,
+            crate::SC_RELOAD_EXCHANGE_NAME,
+            "",
+        ))
+        .await
+        .map_err(|e| {
+            error!("Failed to bind the reload queue to its exchange: {}", e);
+            e
+        })?;
+    debug!(
+        "Reload queue \"{}\" declared ({} messages, {} consumers) and bound to {}",
+        reload_queue,
+        message_count,
+        consumer_count,
+        crate::SC_RELOAD_EXCHANGE_NAME
+    );
+    Ok(reload_queue)
 }
 
 #[cfg(test)]

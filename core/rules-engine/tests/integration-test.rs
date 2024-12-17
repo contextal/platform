@@ -695,6 +695,32 @@ pub mod test {
             ],
         )
         .unwrap();
+        test.test_query(
+            r#"@match_object_meta($string.len()==6)"#,
+            &mut [er("work_003", "object_003_008")],
+        )
+        .unwrap();
+        test.test_query(
+            r#"@match_object_meta($string.len()!=6)"#,
+            &mut [
+                er("work_001", "object_001_004"),
+                er("work_003", "object_003_010"),
+            ],
+        )
+        .unwrap();
+        test.test_query(
+            r#"@match_object_meta($test_escaping.len()>3)"#,
+            &mut [er("work_001", "object_001_002")],
+        )
+        .unwrap();
+        test.test_query(
+            r#"@match_object_meta($test_escaping.len()<5)"#,
+            &mut [
+                er("work_001", "object_001_003"),
+                er("work_001", "object_001_005"),
+            ],
+        )
+        .unwrap();
         // test.test_query("", &mut []).unwrap();
     }
 }

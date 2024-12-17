@@ -1,5 +1,5 @@
 //! Object definitions
-use crate::utils::{get_queue_for, random_string};
+use crate::utils::{get_queue_for, mktemp};
 use digest::{Digest, DynDigest};
 use md5::Md5;
 use serde::{ser::SerializeMap, ser::SerializeSeq, Deserialize, Serialize, Serializer};
@@ -104,6 +104,8 @@ pub struct Info {
     pub hashes: HashMap<String, String>,
     /// The creation time of the object
     pub ctime: f64,
+    /// The object Shannon Entropy value
+    pub entropy: Option<f64>,
 }
 
 impl Info {
@@ -120,15 +122,17 @@ impl Info {
             error!("Failed to open \"{}\" for hashing: {}", src_file, e);
             e
         })?;
-        let (dst_file, outf) = mktemp(objects_path).await?;
+        let objects_path = std::path::Path::new(objects_path);
+        let (dst_file, outf) = mktemp(&objects_path, None).await?;
+        let src_file = std::path::Path::new(src_file);
         let res = Self::hash_and_copy(src_file, inf, &dst_file, outf).await;
         if let Err(e) = res {
             tokio::fs::remove_file(&dst_file).await.ok();
             return Err(e);
         }
-        let (size, hashes) = res.unwrap();
+        let (size, entropy, hashes) = res.unwrap();
         let object_id = hashes[OBJECT_ID_HASH_TYPE].clone();
-        let obj_fname = format!("{}/{}", objects_path, object_id);
+        let obj_fname = objects_path.join(&object_id);
         let move_res = tokio::fs::rename(&dst_file, &obj_fname).await;
         let object_type = if size == 0 {
             String::from("EMPTY")
@@ -138,7 +142,9 @@ impl Info {
         if let Err(e) = move_res {
             error!(
                 "Failed to rename \"{}\" to \"{}\": {}",
-                dst_file, obj_fname, e
+                dst_file.display(),
+                obj_fname.display(),
+                e
             );
             tokio::fs::remove_file(&dst_file).await.ok();
             Err(e.into())
@@ -152,27 +158,34 @@ impl Info {
                 size,
                 hashes,
                 ctime,
+                entropy: Some(entropy),
             })
         }
     }
 
     async fn hash_and_copy(
-        src_file: &str,
+        src_file: &std::path::Path,
         mut inf: tokio::fs::File,
-        dst_file: &str,
+        dst_file: &std::path::Path,
         mut outf: tokio::fs::File,
-    ) -> Result<(u64, HashMap<String, String>), Box<dyn std::error::Error>> {
+    ) -> Result<(u64, f64, HashMap<String, String>), Box<dyn std::error::Error>> {
         let mut hasher = Hasher::new();
         let mut buf = [0u8; 4096];
         let mut size = 0u64;
+        let mut ent = ShannonEntropy::new();
         loop {
             match inf.read(&mut buf[..]).await {
                 Ok(0) => break,
                 Ok(len) => {
                     size += u64::try_from(len).unwrap();
                     hasher.update(&buf[0..len]);
+                    ent.update(&buf[0..len]);
                     outf.write_all(&buf[0..len]).await.map_err(|e| {
-                        error!("Failed to write to temp object \"{}\": {}", dst_file, e);
+                        error!(
+                            "Failed to write to temp object \"{}\": {}",
+                            dst_file.display(),
+                            e
+                        );
                         e
                     })?;
                 }
@@ -180,13 +193,17 @@ impl Info {
                     continue;
                 }
                 Err(e) => {
-                    error!("Failed to read from \"{}\": {}", src_file, e);
+                    error!("Failed to read from \"{}\": {}", src_file.display(), e);
                     return Err(e.into());
                 }
             }
         }
         outf.flush().await.map_err(|e| {
-            error!("Failed to flush temp object \"{}\": {}", dst_file, e);
+            error!(
+                "Failed to flush temp object \"{}\": {}",
+                dst_file.display(),
+                e
+            );
             e
         })?;
         // FIXME: sync or don't?
@@ -194,7 +211,7 @@ impl Info {
         //    error!("Failed to sync temp object \"{}\": {}", dst_file, e);
         //    e
         //})?;
-        Ok((size, hasher.into_map()))
+        Ok((size, ent.entropy(), hasher.into_map()))
     }
 
     /// Returns a failed child
@@ -227,6 +244,7 @@ impl Info {
             size: 0,
             hashes,
             ctime,
+            entropy: None,
         }
     }
 
@@ -258,31 +276,6 @@ impl Info {
         };
         self.object_type = main.to_string();
         self.object_subtype = sub;
-    }
-}
-
-// Create a tempfile in the objects path
-// Note: leaking tempfiles is possible if we get killed; a proper approach
-// would use O_TMPFILE + re-linking via /proc but it has too strong requirements
-// in terms of OS and FS
-pub async fn mktemp(
-    objects_path: &str,
-) -> Result<(String, tokio::fs::File), Box<dyn std::error::Error>> {
-    loop {
-        let fname = format!("{}/{}.tmp", objects_path, random_string(32));
-        let open_res = tokio::fs::OpenOptions::new()
-            .write(true)
-            .create_new(true)
-            .open(&fname)
-            .await;
-        match open_res {
-            Ok(res) => return Ok((fname, res)),
-            Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => continue,
-            Err(e) => {
-                error!("Failed to create new temp object {}: {}", fname, e);
-                return Err(e.into());
-            }
-        }
     }
 }
 
@@ -321,6 +314,51 @@ impl Hasher {
 }
 
 impl Default for Hasher {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+pub struct ShannonEntropy {
+    counts: [usize; 256],
+    size: u64,
+}
+
+impl ShannonEntropy {
+    pub fn new() -> Self {
+        Self {
+            counts: [0; 256],
+            size: 0,
+        }
+    }
+
+    pub fn update(&mut self, buf: &[u8]) {
+        let len = buf.len();
+        for i in buf {
+            self.counts[usize::from(*i)] += 1;
+        }
+        self.size += u64::try_from(len).unwrap(); // Safe bc we read a File (u64 length)
+    }
+
+    pub fn entropy(&self) -> f64 {
+        let mut res = 0f64;
+        if self.size == 0 {
+            return 0f64;
+        }
+        let size = self.size as f64;
+        for i in 0..256 {
+            let count = self.counts[i] as f64;
+            if count == 0.0 {
+                continue;
+            }
+            let freq = count / size;
+            res -= freq * freq.log2();
+        }
+        res
+    }
+}
+
+impl Default for ShannonEntropy {
     fn default() -> Self {
         Self::new()
     }

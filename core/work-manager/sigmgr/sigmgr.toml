@@ -1,0 +1,17 @@
+[broker]
+host = 'rabbit1'
+
+[read_db]
+dbname = 'grapher'
+host = 'postgres'
+port = 5432
+user = 'grapher'
+pass = 'grapher'
+
+[write_db]
+dbname = 'grapher'
+host = 'postgres'
+port = 5432
+user = 'grapher'
+pass = 'grapher'
+

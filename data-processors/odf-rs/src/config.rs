@@ -23,6 +23,8 @@ pub struct Config {
     pub max_processed_size: u64,
     /// Single child size limit
     pub max_child_output_size: u64,
+    /// Whether to create URL children
+    pub create_domain_children: bool,
 }
 
 impl Config {

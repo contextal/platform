@@ -140,6 +140,7 @@ impl TestEnvironment {
             max_children: 10,
             max_processed_size: 500000,
             max_child_output_size: 50000,
+            create_domain_children: true,
         };
         TestEnvironment {
             _temp_dir: temp_dir,

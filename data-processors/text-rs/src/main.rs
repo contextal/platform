@@ -86,6 +86,12 @@ struct TextMetadata<'a> {
 
     /// Collection of possible passwords "mentioned" in the input text.
     possible_passwords: Vec<String>,
+
+    /// Hosts extracted for URLs
+    unique_hosts: Vec<String>,
+
+    /// Domains extracted for URLs
+    unique_domains: Vec<String>,
 }
 
 #[derive(Serialize)]
@@ -380,6 +386,11 @@ impl BackendState<'_> {
             languages_and_grammars,
         })
     }
+}
+
+#[derive(Serialize)]
+struct DomainMetadata {
+    name: String,
 }
 
 #[instrument(level="error", skip_all, fields(object_id = request.object.object_id))]
@@ -681,7 +692,7 @@ fn process_request(
         .into_iter()
         .map(String::from)
         .collect::<Vec<_>>();
-    uris.sort();
+    uris.sort_unstable();
 
     let mut possible_passwords = if programming_language.is_none() {
         backend_state
@@ -700,7 +711,7 @@ fn process_request(
     } else {
         Vec::new()
     };
-    possible_passwords.sort();
+    possible_passwords.sort_unstable();
 
     if backend_state.re_cc.find_iter(&text).any(|matched| {
         card_validate::Validate::from(
@@ -716,34 +727,87 @@ fn process_request(
     }
 
     let mut children: Vec<BackendResultChild> = Vec::new();
-    if backend_state.config.create_url_children && request.symbols.contains(&"OCR".to_owned()) {
-        for uri in uris.iter() {
-            if uri.starts_with("http") {
-                let mut url_file =
-                    tempfile::NamedTempFile::new_in(&backend_state.config.output_path)?;
-                if url_file.write_all(&uri.clone().into_bytes()).is_ok() {
-                    children.push(BackendResultChild {
-                        path: Some(
-                            url_file
-                                .into_temp_path()
-                                .keep()
-                                .unwrap()
-                                .into_os_string()
-                                .into_string()
-                                .unwrap(),
-                        ),
-                        force_type: Some("URL".to_string()),
-                        symbols: vec![ /* "SHORT_URL".to_string() */ ],
-                        relation_metadata: match serde_json::to_value(UrlMetadata {
-                            url: uri.clone(),
-                        })? {
-                            serde_json::Value::Object(v) => v,
-                            _ => unreachable!(),
-                        },
-                    });
+    let mut unique_hosts: Vec<String> = Vec::new();
+    let mut unique_domains: Vec<String> = Vec::new();
+    let max_children = usize::try_from(backend_state.config.max_children).unwrap_or(usize::MAX);
+    for uri in uris.iter() {
+        if let Ok(url) = url::Url::parse(uri) {
+            if ["http", "https"].contains(&url.scheme()) {
+                if children.len() < max_children
+                    && backend_state.config.create_url_children
+                    && request.symbols.contains(&"OCR".to_owned())
+                {
+                    let mut url_file =
+                        tempfile::NamedTempFile::new_in(&backend_state.config.output_path)?;
+                    if url_file.write_all(&uri.clone().into_bytes()).is_ok() {
+                        children.push(BackendResultChild {
+                            path: Some(
+                                url_file
+                                    .into_temp_path()
+                                    .keep()
+                                    .unwrap()
+                                    .into_os_string()
+                                    .into_string()
+                                    .unwrap(),
+                            ),
+                            force_type: Some("URL".to_string()),
+                            symbols: vec![ /* "SHORT_URL".to_string() */ ],
+                            relation_metadata: match serde_json::to_value(UrlMetadata {
+                                url: uri.clone(),
+                            })? {
+                                serde_json::Value::Object(v) => v,
+                                _ => unreachable!(),
+                            },
+                        });
+                    }
+                }
+            }
+            if let Some(host) = url.host_str() {
+                unique_hosts.push(host.to_string());
+                if let Ok(domain) = addr::parse_domain_name(host) {
+                    if let Some(root) = domain.root() {
+                        unique_domains.push(root.to_string());
+                    }
                 }
             }
         }
+    }
+    unique_hosts.sort_unstable();
+    unique_hosts.dedup();
+    unique_domains.sort_unstable();
+    unique_domains.dedup();
+    if backend_state.config.create_domain_children {
+        for domain in unique_domains.iter() {
+            if children.len() >= max_children {
+                break;
+            }
+            let mut domain_file =
+                tempfile::NamedTempFile::new_in(&backend_state.config.output_path)?;
+            if domain_file.write_all(domain.as_bytes()).is_ok() {
+                children.push(BackendResultChild {
+                    path: Some(
+                        domain_file
+                            .into_temp_path()
+                            .keep()
+                            .unwrap()
+                            .into_os_string()
+                            .into_string()
+                            .unwrap(),
+                    ),
+                    force_type: Some("Domain".to_string()),
+                    symbols: vec![],
+                    relation_metadata: match serde_json::to_value(DomainMetadata {
+                        name: domain.clone(),
+                    })? {
+                        serde_json::Value::Object(v) => v,
+                        _ => unreachable!(),
+                    },
+                });
+            }
+        }
+    }
+    if children.len() >= max_children {
+        symbols.push("LIMITS_REACHED".into());
     }
 
     let metadata = TextMetadata {
@@ -760,6 +824,8 @@ fn process_request(
         number_of_words,
         uris,
         possible_passwords,
+        unique_hosts,
+        unique_domains,
     };
 
     Ok(BackendResultKind::ok(BackendResultOk {
