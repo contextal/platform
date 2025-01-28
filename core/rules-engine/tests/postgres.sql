@@ -10,7 +10,8 @@ CREATE TABLE objects (
     size bigint NOT NULL,
     hashes jsonb NOT NULL,
     t timestamp with time zone NOT NULL,
-    result jsonb NOT NULL
+    result jsonb NOT NULL,
+    entropy double precision NULL
 );
 CREATE INDEX o_work_id_idx ON objects USING hash (work_id);
 CREATE INDEX o_object_id_idx ON objects USING hash (object_id);

@@ -1,1 +1,2 @@
 objects_path = "/var/lib/objects"
+query_timeout_secs = 15

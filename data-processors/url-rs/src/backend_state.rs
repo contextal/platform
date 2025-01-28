@@ -102,6 +102,7 @@ impl Backend {
     /// - not reachable-and-responding, or
     /// - it is already running for too long, or
     /// - too many backend requests have been already processed,
+    ///
     /// then the browser instance will be restarted before creating a new `Page`.
     pub async fn new_page(&self) -> Result<Page, UrlBackendError> {
         let is_it_time_to_recycle = self.new_pages_requested.get()

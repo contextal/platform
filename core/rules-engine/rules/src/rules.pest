@@ -49,15 +49,32 @@ jsonpath_match_simple = _{ jsonpath_path_simple ~
         | func_arg_iregex
         | func_arg_starts_with
         | jsonpath_match_length
+        | jsonpath_object_match
     ) }
-jsonpath_match_simple_equals = _{jsonpath_equals ~ (string | number | bool | jsonpath_path_simple)}
-func_arg_regex = { "regex" ~ "(" ~ string ~ ")" }
-func_arg_iregex = { "iregex" ~ "(" ~ string ~ ")" }
-func_arg_starts_with = { "starts_with" ~ "(" ~ string ~ ")" }
-jsonpath_match_simple_compares = _{compares ~ (number | jsonpath_path_simple)}
+jsonpath_match_simple_equals = _{jsonpath_equals ~ (string | variable | number | bool | jsonpath_path_simple)}
+func_arg_regex = { "regex" ~ "(" ~ ( string | variable ) ~ ")" }
+func_arg_iregex = { "iregex" ~ "(" ~ ( string | variable ) ~ ")" }
+func_arg_starts_with = { "starts_with" ~ "(" ~ ( string | variable ) ~ ")" }
+jsonpath_match_simple_compares = _{compares ~ (number | variable | jsonpath_path_simple)}
 jsonpath_equals = ${ "==" | "!=" | "<>" }
-jsonpath_match_length = {".len()" ~ op ~ jsonpath_unsigned }
+jsonpath_match_length = {".len()" ~ op ~ (jsonpath_unsigned | variable ) }
 jsonpath_unsigned = { ASCII_DIGIT+ }
+
+jsonpath_object_match = { "?" ~ jsonpath_object_match_condition_node }
+jsonpath_object_match_condition = _{ jsonpath_object_match_condition_simple | jsonpath_object_match_condition_node }
+jsonpath_object_match_id = { "$" ~ jsonpath_selector_identifier }
+jsonpath_object_match_condition_simple = {
+	jsonpath_object_match_id ~ (
+    	jsonpath_object_match_equals
+        | jsonpath_object_match_compares
+        | func_arg_regex
+        | func_arg_iregex
+        | func_arg_starts_with
+	)
+}
+jsonpath_object_match_condition_node = { "(" ~ jsonpath_object_match_condition ~ (glue ~ jsonpath_object_match_condition)* ~ ")" }
+jsonpath_object_match_equals = { jsonpath_equals ~ (string | variable | number | bool | jsonpath_object_match_id) }
+jsonpath_object_match_compares = { compares ~ (number | variable | jsonpath_object_match_id) }
 
 number = @{ integer ~ ("." ~ ASCII_DIGIT+)? ~ (^"e" ~ integer)? }
 integer = @{ ("+" | "-")? ~ ASCII_DIGIT+ }
@@ -112,8 +129,8 @@ clam_pcre = { "/" ~ (clam_pcre_set | ("\\/" | !"/" ~ ANY ) )* ~ "/" }
 */
 
 get_hash_fn = !{ "get_hash" ~ "(" ~ string ~ ")" }
-has_symbol_fn = !{ "has_symbol" ~ "(" ~ (string | func_arg_regex | func_arg_iregex | func_arg_starts_with) ~ ")" }
-has_name_fn = !{ "has_name" ~ "(" ~ (string | func_arg_regex | func_arg_iregex | func_arg_starts_with) ~ ")" }
+has_symbol_fn = !{ "has_symbol" ~ "(" ~ (string | variable | func_arg_regex | func_arg_iregex | func_arg_starts_with) ~ ")" }
+has_name_fn = !{ "has_name" ~ "(" ~ (string | variable | func_arg_regex | func_arg_iregex | func_arg_starts_with) ~ ")" }
 has_descendant_fn = !{ "has_descendant" ~ "(" ~ node ~ ("," ~ integer)? ~ ")" }
 has_ancestor_fn = !{ "has_ancestor" ~ "(" ~ node ~ ("," ~ integer)? ~ ")" }
 has_child_fn = !{ "has_child" ~ "(" ~ node ~ ")" }
@@ -124,16 +141,32 @@ has_object_meta_fn = !{ "has_object_meta" ~ "(" ~ jsonpath_path_simple ~ ")" }
 has_relation_meta_fn = !{ "has_relation_meta" ~ "(" ~ jsonpath_path_simple ~ ")" }
 match_object_meta_fn = !{ "match_object_meta" ~ "(" ~ jsonpath_match_simple ~ ")" }
 match_relation_meta_fn = !{ "match_relation_meta" ~ "(" ~ jsonpath_match_simple ~ ")" }
-date_range_fn = !{ "date_range" ~ "(" ~ date_string ~ "," ~ date_string ~ ")" }
-date_since_fn = !{ "date_since" ~ "(" ~ date_string ~ ")" }
+date_range_fn = !{ "date_range" ~ "(" ~ ( date_string | variable ) ~ "," ~ ( date_string | variable ) ~ ")" }
+date_since_fn = !{ "date_since" ~ "(" ~ ( date_string | variable ) ~ ")" }
 count_ancestors_fn = !{ "count_ancestors" ~ "(" ~ (node ~ ("," ~ integer)?)? ~ ")" }
 count_descendants_fn = !{ "count_descendants" ~ "(" ~ (node ~ ("," ~ integer)?)? ~ ")" }
 count_children_fn = !{ "count_children" ~ "(" ~ node? ~ ")" }
 count_siblings_fn = !{ "count_siblings" ~ "(" ~ node? ~ ")" }
-has_error_fn = !{ "has_error" ~ "(" ~( string | func_arg_regex | func_arg_iregex | func_arg_starts_with )? ~ ")"}
+has_error_fn = !{ "has_error" ~ "(" ~( string | variable | func_arg_regex | func_arg_iregex | func_arg_starts_with )? ~ ")"}
 is_root_fn = !{ "is_root()" }
 is_leaf_fn = !{ "is_leaf()" }
-match_pattern_fn = !{ "match_pattern" ~ "(" ~ clam_pattern ~ ")" }
+match_pattern_fn = !{ "match_pattern" ~ "(" ~ ( variable | clam_pattern ) ~ ")" }
+
+variable = ${ "${" ~ ((ASCII_ALPHA | "_") ~ (ASCII_ALPHANUMERIC | "_")*) ~"}" }
+variable_bool = { bool }
+variable_number = { number }
+variable_string = { string }
+variable_date = { "datetime" ~ "(" ~ date_string ~ ")" }
+variable_clam_pattern = { "pattern" ~ "(" ~ clam_pattern ~ ")"}
+variable_value = {
+    variable_bool
+    | variable_number
+    | variable_string
+    | variable_date
+    | variable_clam_pattern
+}
+variable_definition = { variable ~ "=" ~ variable_value ~ ";"}
+
 
 functions = { functions_bool | functions_string | functions_number}
 functions_bool = ${ "@" ~ (
@@ -167,9 +200,9 @@ functions_number = ${ "@" ~ (
 )}
 
 cond = {
-    (functions_bool | ident_bool) ~ equals ~ (bool | ident_bool) |
-    (functions_string | ident_string) ~ equals ~ (constant_string | ident_string | functions_string) |
-    (functions_number | ident_number) ~ op ~ (number | ident_number | functions_number) |
+    (functions_bool | ident_bool) ~ equals ~ (bool | ident_bool | variable) |
+    (functions_string | ident_string) ~ equals ~ (constant_string | ident_string | functions_string | variable) |
+    (functions_number | ident_number) ~ op ~ (number | ident_number | functions_number | variable) |
     functions_bool | ident_bool | bool
 }
 constant_string = { string }
@@ -181,7 +214,7 @@ glue = { logic_and | logic_or }
 logic_not = { (^"not"~!ASCII_ALPHANUMERIC ) | "!" }
 node_primary = _{ logic_not? ~ (cond | "(" ~ node ~ ")") }
 node = { node_primary ~ ( glue ~ node_primary )* }
-rule = { SOI ~ node ~ EOI }
+rule = { SOI ~ variable_definition* ~ node ~ EOI }
 
 WHITESPACE = _{ " "|"\n"|"\t" }
 COMMENT = @{ ("//" ~ (!"\n" ~ ANY)*) | ("/*" ~ (!"*/" ~ ANY)* ~ "*/") }

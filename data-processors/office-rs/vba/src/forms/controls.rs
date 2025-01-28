@@ -874,19 +874,19 @@ pub trait ParentControl<'a, R: 'a + Read + Seek> {
         &self.pctrl_info().caption
     }
     /// A custom mouse pointer image (`MouseIcon`)
-    fn get_mouse_icon(&'a self) -> Option<&Picture> {
+    fn get_mouse_icon(&'a self) -> Option<&'a Picture> {
         self.pctrl_info().mouse_icon.as_ref()
     }
     /// The (optional) picture to display on this control (`Picture`)
-    fn get_picture(&'a self) -> Option<&Picture> {
+    fn get_picture(&'a self) -> Option<&'a Picture> {
         self.pctrl_info().picture.as_ref()
     }
     /// The font to use for this form text (`Font`)
-    fn get_font(&'a self) -> Option<&Font> {
+    fn get_font(&'a self) -> Option<&'a Font> {
         self.pctrl_info().font.as_ref()
     }
     /// Non fatal anomalies encountered while processing the control
-    fn get_anomalies(&'a self) -> &[String] {
+    fn get_anomalies(&'a self) -> &'a [String] {
         self.pctrl_info().anomalies.as_ref()
     }
 }

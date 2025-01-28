@@ -582,6 +582,7 @@ pub(crate) struct RowInfo {
     pub(crate) size: u32,
     pub(crate) index: u32,
     pub(crate) columns: Vec<u32>,
+    pub(crate) regions: u32,
 }
 
 impl<R: Read + Seek> Sheet<R> {
@@ -708,6 +709,15 @@ impl<R: Read + Seek> Sheet<R> {
         }
 
         let regions = find_regions(&rows);
+        for region in &regions {
+            for row_index in region.top..=region.bottom {
+                if let Ok(index) = rows.binary_search_by(|row_info| row_info.index.cmp(&row_index))
+                {
+                    rows[index].regions += 1;
+                }
+            }
+        }
+
         let mut row_reader = RowReader::new(
             self.archive.clone(),
             self.path.clone(),
@@ -716,6 +726,9 @@ impl<R: Read + Seek> Sheet<R> {
             self.chunk_end.clone().unwrap(),
             self.shared_strings.clone(),
         );
+        let minimum_regions = 10;
+        let maximum_cached_rows = 1000;
+        row_reader.cache_rows(minimum_regions, maximum_cached_rows)?;
 
         for region in &regions {
             for row in region.top..=region.bottom {
@@ -789,9 +802,26 @@ impl<R: Read + Seek> Sheet<R> {
                                 return Err("Invalid column".into());
                             }
                         }
-                        columns.push(cell.column);
-                        last_cell = Some(cell);
-                        *num_cells_detected += 1;
+                        let mut empty_cell = true;
+                        loop {
+                            match self.next()? {
+                                XmlEvent::StartElement { name, .. } => {
+                                    if name.local_name.as_str() == "v" {
+                                        empty_cell = false;
+                                        break;
+                                    }
+                                    self.skip()?;
+                                }
+                                XmlEvent::EndElement { .. } | XmlEvent::EndDocument => break,
+                                _ => {}
+                            }
+                        }
+
+                        if !empty_cell {
+                            columns.push(cell.column);
+                            last_cell = Some(cell);
+                            *num_cells_detected += 1;
+                        }
                     }
                     _ => self.skip()?,
                 },
@@ -810,6 +840,7 @@ impl<R: Read + Seek> Sheet<R> {
             index: row_number.try_into()?,
             //hidden,
             columns,
+            regions: 0,
         })
     }
 
@@ -1095,7 +1126,8 @@ struct RowReader<R: Read + Seek> {
     chunk_end: OffsetReaderChunk,
     rows: Vec<RowInfo>,
     shared_strings: Option<Rc<SharedStrings<R>>>,
-    cache: Option<RowReaderCache<R>>,
+    cached_rows: CachedRows,
+    row_reader_cache: Option<RowReaderCache<R>>,
 }
 
 #[derive(Debug, Clone)]
@@ -1118,18 +1150,72 @@ impl<R: Read + Seek> RowReader<R> {
         chunk_end: OffsetReaderChunk,
         shared_strings: Option<Rc<SharedStrings<R>>>,
     ) -> Self {
+        let cached_rows = CachedRows { rows: vec![] };
         RowReader {
-            cache: None,
+            row_reader_cache: None,
             archive,
             path,
             rows,
             chunk_start,
             chunk_end,
             shared_strings,
+            cached_rows,
         }
     }
 
+    fn cache_rows(
+        &mut self,
+        minimum_regions: u32,
+        maximum_cached_rows: usize,
+    ) -> Result<(), OoxmlError> {
+        let mut rows_cache_priority = self
+            .rows
+            .iter()
+            .enumerate()
+            .filter(|(_, row)| row.regions > minimum_regions)
+            .map(|(index, row)| (index, row.regions))
+            .collect::<Vec<_>>();
+        rows_cache_priority.sort_by(|a, b| b.1.cmp(&a.1));
+        rows_cache_priority.truncate(maximum_cached_rows);
+        rows_cache_priority.sort_by(|a, b| a.0.cmp(&b.0));
+
+        let mut cached_rows = Vec::new();
+        for (index, _) in rows_cache_priority {
+            let row_info = &self.rows[index];
+            let mut columns = Vec::new();
+            let entry = self.archive.find_entry(&self.path, true)?;
+            let mut row_reader = RowReaderCache::new(
+                entry,
+                self.chunk_start.clone(),
+                self.chunk_end.clone(),
+                self.shared_strings.clone(),
+                row_info,
+            )?;
+            let mut last_column = None;
+            while let Some((index, cell_type, value)) =
+                row_reader.next_cell_with_raw_value(last_column)?
+            {
+                last_column = Some(index);
+                columns.push(CachedCell {
+                    index,
+                    cell_type,
+                    value,
+                })
+            }
+            let cached_row = CachedRow {
+                index: row_info.index,
+                columns,
+            };
+            cached_rows.push(cached_row);
+        }
+        self.cached_rows = CachedRows { rows: cached_rows };
+        Ok(())
+    }
+
     fn get_cell_value(&mut self, row: u32, column: u32) -> Result<Option<String>, OoxmlError> {
+        if let Some(cached_row) = self.cached_rows.get_row(row) {
+            return cached_row.get_column_value(column, &self.shared_strings);
+        }
         let index = match self
             .rows
             .binary_search_by(|row_info| row_info.index.cmp(&row))
@@ -1142,34 +1228,46 @@ impl<R: Read + Seek> RowReader<R> {
             return Ok(None);
         }
 
-        if let Some(cache) = &self.cache {
+        if let Some(cache) = &self.row_reader_cache {
             if cache.row != row
                 || cache.column.is_none()
                 || cache.column.as_ref().unwrap().0 > column
             {
-                self.cache = None;
+                self.row_reader_cache = None;
             }
         }
-        if self.cache.is_none() {
-            let row_reader = RowReaderCache::new(self, row_info, row)?;
-            self.cache = Some(row_reader);
+        if self.row_reader_cache.is_none() {
+            let entry = self.archive.find_entry(&self.path, true)?;
+            let row_reader = RowReaderCache::new(
+                entry,
+                self.chunk_start.clone(),
+                self.chunk_end.clone(),
+                self.shared_strings.clone(),
+                row_info,
+            )?;
+            self.row_reader_cache = Some(row_reader);
         }
 
-        let cache = self.cache.as_mut().unwrap();
+        let cache = self.row_reader_cache.as_mut().unwrap();
         cache.get_column_value(column)
     }
 }
 
 impl<R: Read + Seek> RowReaderCache<R> {
-    fn new(row_reader: &RowReader<R>, row_info: &RowInfo, row: u32) -> Result<Self, OoxmlError> {
-        let mut entry = row_reader.archive.find_entry(&row_reader.path, true)?;
+    fn new(
+        mut entry: Entry,
+        chunk_start: OffsetReaderChunk,
+        chunk_end: OffsetReaderChunk,
+        shared_strings: Option<Rc<SharedStrings<R>>>,
+        row_info: &RowInfo,
+    ) -> Result<Self, OoxmlError> {
         let mut chunks = [
-            row_reader.chunk_start.clone(),
+            chunk_start,
             OffsetReaderChunk {
                 offset: row_info.offset,
                 size: row_info.size.into(),
             },
-            row_reader.chunk_end.clone(),
+            chunk_end,
         ];
 
         let mut buf = [0u8; 3];
@@ -1203,9 +1301,9 @@ impl<R: Read + Seek> RowReaderCache<R> {
 
         let column: Option<(u32, CellType)> = RowReaderCache::<R>::next_cell(&mut parser)?;
         Ok(RowReaderCache {
-            shared_strings: row_reader.shared_strings.clone(),
+            shared_strings,
             parser,
-            row,
+            row: row_info.index,
             column,
         })
     }
@@ -1258,6 +1356,87 @@ impl<R: Read + Seek> RowReaderCache<R> {
             }
         }
         Ok(None)
+    }
+
+    fn next_cell_with_raw_value(
+        &mut self,
+        mut last_column: Option<u32>,
+    ) -> Result<Option<(u32, CellType, String)>, OoxmlError> {
+        loop {
+            if self.column.is_none() {
+                return Ok(None);
+            }
+            let column = self.column.as_ref().unwrap().0;
+            if Some(column) <= last_column {
+                return Ok(None);
+            }
+
+            let cell_type = self.column.as_ref().unwrap().1.clone();
+            let mut value = None;
+
+            match cell_type {
+                CellType::InlineString => {
+                    let mut result = String::new();
+                    let mut inside_is = false;
+                    let mut inside_t = false;
+                    loop {
+                        match self.parser.next()? {
+                            XmlEvent::EndDocument => {
+                                return Err("Unexpected end of document".into());
+                            }
+                            XmlEvent::StartElement { name, .. } => match name.local_name.as_str() {
+                                "is" => inside_is = true,
+                                "t" => inside_t = true,
+                                _ => {}
+                            },
+                            XmlEvent::EndElement { name } => match name.local_name.as_str() {
+                                "is" => inside_is = false,
+                                "t" => inside_t = false,
+                                "c" => break,
+                                _ => {}
+                            },
+                            XmlEvent::Characters(str) if inside_is && inside_t => {
+                                result.push_str(&str);
+                            }
+                            _ => {}
+                        }
+                    }
+                    if !result.is_empty() {
+                        value = Some(result);
+                    }
+                }
+                _ => {
+                    let mut inside_v = false;
+                    loop {
+                        match self.parser.next()? {
+                            XmlEvent::EndDocument => {
+                                return Err("Unexpected end of document".into());
+                            }
+                            XmlEvent::StartElement { name, .. } => {
+                                if name.local_name.as_str() == "v" {
+                                    inside_v = true;
+                                }
+                            }
+                            XmlEvent::EndElement { name } => match name.local_name.as_str() {
+                                "v" => inside_v = false,
+                                "c" => break,
+                                _ => {}
+                            },
+                            XmlEvent::Characters(str) if inside_v => {
+                                value = Some(str);
+                            }
+                            _ => {}
+                        }
+                    }
+                }
+            }
+            last_column = Some(column);
+            self.column = Self::next_cell(&mut self.parser)?;
+            let Some(value) = value else {
+                continue;
+            };
+            return Ok(Some((column, cell_type, value)));
+        }
     }
 
     fn get_column_value(&mut self, column: u32) -> Result<Option<String>, OoxmlError> {
@@ -1369,5 +1548,72 @@ impl<R: Read + Seek> RowReaderCache<R> {
                 Ok(v)
             }
         }
+    }
+}
+
+struct CachedCell {
+    index: u32,
+    cell_type: CellType,
+    value: String,
+}
+
+impl CachedCell {
+    fn get_value<R: Read + Seek>(
+        &self,
+        shared_strings: &Option<Rc<SharedStrings<R>>>,
+    ) -> Result<Option<String>, OoxmlError> {
+        match self.cell_type {
+            CellType::SharedString => {
+                if shared_strings.is_none() {
+                    return Ok(None);
+                }
+                let index = usize::from_str(&self.value)?;
+                let shared_strings = shared_strings.as_ref().unwrap();
+                let result = shared_strings.get(index)?;
+                Ok(Some(result))
+            }
+            _ => {
+                if self.value.is_empty() {
+                    Ok(None)
+                } else {
+                    Ok(Some(self.value.to_string()))
+                }
+            }
+        }
+    }
+}
+
+struct CachedRow {
+    index: u32,
+    columns: Vec<CachedCell>,
+}
+
+impl CachedRow {
+    fn get_column_value<R: Read + Seek>(
+        &self,
+        column_index: u32,
+        shared_strings: &Option<Rc<SharedStrings<R>>>,
+    ) -> Result<Option<String>, OoxmlError> {
+        let Ok(index) = self
+            .columns
+            .binary_search_by(|cell| cell.index.cmp(&column_index))
+        else {
+            return Ok(None);
+        };
+        let cell = &self.columns[index];
+        cell.get_value(shared_strings)
+    }
+}
+
+struct CachedRows {
+    rows: Vec<CachedRow>,
+}
+
+impl<'a> CachedRows {
+    fn get_row(&'a self, row_index: u32) -> Option<&'a CachedRow> {
+        let Ok(index) = self.rows.binary_search_by(|row| row.index.cmp(&row_index)) else {
+            return None;
+        };
+        Some(&self.rows[index])
     }
 }

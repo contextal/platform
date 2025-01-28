@@ -57,7 +57,7 @@ pub const META_KEY_ORIGIN: &str = "_origin";
 pub const META_KEY_REPROCESSABLE: &str = "_can_reprocess";
 
 /// The expected database version
-pub const DB_SCHEMA_VERSION: i32 = 2;
+pub const DB_SCHEMA_VERSION: i32 = 3;
 
 /// The current scenario engine version
 pub const SCN_VERSION: u16 = 1;

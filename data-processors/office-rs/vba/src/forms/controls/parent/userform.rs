@@ -40,7 +40,7 @@ impl<'a, R: 'a + Read + Seek> UserForm<'a, R> {
 }
 
 impl<'a, R: Read + Seek> ParentControl<'a, R> for UserForm<'a, R> {
-    fn pctrl_info(&'a self) -> &ParentControlInfo<'a, R> {
+    fn pctrl_info(&'a self) -> &'a ParentControlInfo<'a, R> {
         &self.pi
     }
 }

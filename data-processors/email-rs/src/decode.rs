@@ -367,7 +367,6 @@ mod test {
         assert!(decode_b("aCaB4===").is_none());
         assert!(decode_b("aCaB42==").is_some());
         assert!(decode_b("aCaB423=").is_some());
-        assert!(true);
     }
 
     #[test]

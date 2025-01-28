@@ -6,8 +6,6 @@
 //!
 //! The header presence and the raw sector size are autodetected
 
-#![warn(missing_docs)]
-
 use ctxutils::io::{rdu16be, rdu16le, rdu32be, rdu32le, rdu8};
 use std::collections::HashSet;
 use std::io::{Read, Seek};

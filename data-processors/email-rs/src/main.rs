@@ -151,11 +151,11 @@ fn process_request(
         };
         let mut names: Vec<String> = Vec::new();
         for name in dumped_part.part.names() {
-            if names.iter().find(|n| n == &name).is_none() {
+            if !names.iter().any(|n| n == name) {
                 names.push(name.to_string());
             }
         }
-        part_meta.name = names.first().map(|n| n.clone());
+        part_meta.name = names.first().cloned();
         part_meta.names = names;
 
         if !part_meta.inline {

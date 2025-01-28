@@ -267,17 +267,15 @@ impl Property {
         match &self.value {
             PropertyValue::String(sv) => Some(
                 sv.get_stream(ole, base)
-                    .and_then(|stream| {
-                        Ok(utf8dec_rs::UTF8DecReader::for_label("UTF-16LE", stream).unwrap())
-                    })
+                    .map(|stream| utf8dec_rs::UTF8DecReader::for_label("UTF-16LE", stream).unwrap())
                     .and_then(|mut stream| stream.read_to_string(&mut s))
-                    .and_then(|_| Ok(s)),
+                    .map(|_| s),
             ),
             PropertyValue::String8(sv) => Some(
                 sv.get_stream(ole, base)
-                    .and_then(|stream| Ok(utf8dec_rs::UTF8DecReader::for_windows_cp(cp, stream)))
+                    .map(|stream| utf8dec_rs::UTF8DecReader::for_windows_cp(cp, stream))
                     .and_then(|mut stream| stream.read_to_string(&mut s))
-                    .and_then(|_| Ok(s)),
+                    .map(|_| s),
             ),
             _ => None,
         }

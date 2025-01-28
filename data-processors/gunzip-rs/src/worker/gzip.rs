@@ -9,7 +9,7 @@ use std::io::Read;
 unsafe fn make_stream(wbits: i32) -> Result<Box<libz_sys::z_stream>, std::io::Error> {
     let arr: [u8; std::mem::size_of::<libz_sys::z_stream>()] =
         [0; std::mem::size_of::<libz_sys::z_stream>()];
-    let mut z: Box<libz_sys::z_stream> = Box::new(std::mem::transmute(arr));
+    let mut z = Box::new(std::mem::transmute::<[u8; 112], libz_sys::z_stream>(arr));
     // Note: z_stream contains two nullable function pointers (zalloc and zfree) which
     // rustc will not tolerate
     // Array transmutation is used here in place of MayeUninit::zeroed() so the compiler

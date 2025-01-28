@@ -367,7 +367,7 @@ impl PageInfo {
 }
 
 impl<'a, R: Read + Seek> ParentControl<'a, R> for MultiPage<'a, R> {
-    fn pctrl_info(&'a self) -> &ParentControlInfo<'a, R> {
+    fn pctrl_info(&'a self) -> &'a ParentControlInfo<'a, R> {
         &self.frame.pi
     }
 
@@ -377,7 +377,7 @@ impl<'a, R: Read + Seek> ParentControl<'a, R> for MultiPage<'a, R> {
 }
 
 impl<'a, R: Read + Seek> ParentControl<'a, R> for Page<'a, R> {
-    fn pctrl_info(&'a self) -> &ParentControlInfo<'a, R> {
+    fn pctrl_info(&'a self) -> &'a ParentControlInfo<'a, R> {
         &self.frame.pi
     }
 }

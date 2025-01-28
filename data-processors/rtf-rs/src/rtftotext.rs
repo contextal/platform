@@ -295,7 +295,10 @@ pub fn write_plaintext<W: Write>(token_stream: &[Token], mut writer: W) -> Resul
     let mut state = DocumentState::new();
 
     debug!("Iterating over token stream.");
-    for token in token_stream.iter().filter(|c| !matches!(**c, Token::Newline(_))) {
+    for token in token_stream
+        .iter()
+        .filter(|c| !matches!(**c, Token::Newline(_)))
+    {
         state.process_token(token);
     }
     debug!("Finished token stream iteration.");

@@ -60,21 +60,21 @@ fn plain() {
 
     assert_eq!(
         backend_result.children[0].relation_metadata["uncompressed_size"]
-            .as_u64()                              
+            .as_u64()
             .expect("a number"),
         36864
     );
 
     assert_eq!(
         backend_result.children[0].relation_metadata["compression_type"]
-            .as_str()                              
+            .as_str()
             .expect("a string"),
         "MSZIP"
     );
 
     assert_eq!(
         backend_result.children[0].relation_metadata["name"]
-            .as_str()                              
+            .as_str()
             .expect("a string"),
         "Test"
     );

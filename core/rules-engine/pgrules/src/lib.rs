@@ -1,5 +1,6 @@
 use pest::{iterators::Pair, Parser, Span};
-use rules::{Rule, RuleParser};
+use rules::{unescape_string, Rule, RuleParser};
+use std::{collections::HashMap, fmt::Debug};
 use tracing::{debug, trace};
 
 pub struct PgRule(RuleParser);
@@ -44,10 +45,115 @@ impl<'a> Iterator for PairsWrapper<'a> {
     }
 }
 
+enum VariableValue {
+    Bool(String),
+    Number(String),
+    String(String),
+    DateTime {
+        date_string: String,
+        interval: String,
+    },
+    ClamPattern {
+        name: String,
+        //pattern: String,
+    },
+}
+
 pub fn to_sql(
     pair: PairWrapper,
     rec: u32,
     single_workid: bool,
+) -> Result<String, Box<pest::error::Error<Rule>>> {
+    let mut variables: HashMap<String, VariableValue> = HashMap::new();
+    to_sql_inner(pair, rec, single_workid, &mut variables)
+}
+
+fn parse_variable_definition(
+    pair: PairWrapper,
+    variables: &mut HashMap<String, VariableValue>,
+) -> Result<(), Box<pest::error::Error<Rule>>> {
+    assert!(pair.as_rule() == Rule::variable_definition);
+    let mut inner = pair.into_inner();
+    //safe
+    let name_pair = inner.next().unwrap();
+    let name = name_pair.as_str();
+    if variables.contains_key(name) {
+        return Err(pest::error::Error::new_from_span(
+            pest::error::ErrorVariant::CustomError {
+                message: format!("Variable {name} is already defined"),
+            },
+            name_pair.as_span(),
+        )
+        .into());
+    }
+    //safe
+    let value_pair = inner.next().unwrap().into_inner().next().unwrap();
+    let value_rule = value_pair.as_rule();
+    //safe
+    let value_pair = value_pair.into_inner().next().unwrap();
+    let value = match value_rule {
+        Rule::variable_bool => {
+            let value = to_sql_inner(value_pair, 1, false, variables)?;
+            VariableValue::Bool(value)
+        }
+        Rule::variable_number => {
+            let value = to_sql_inner(value_pair, 1, false, variables)?;
+            VariableValue::Number(value)
+        }
+        Rule::variable_string => {
+            let value = unescape_string(value_pair.0)?;
+            VariableValue::String(value)
+        }
+        Rule::variable_date => {
+            let interval = match value_pair.as_rule() {
+                Rule::date => "1",
+                Rule::datetime => "INTERVAL '1 seconds'",
+                _ => unreachable!(),
+            }
+            .to_string();
+            let date_string = to_sql_inner(value_pair, 1, false, variables)?;
+            VariableValue::DateTime {
+                date_string,
+                interval,
+            }
+        }
+        Rule::variable_clam_pattern => {
+            let mut inner = value_pair.into_inner();
+            let mut pattern_pair = inner.next().unwrap();
+            let prefix = if pattern_pair.as_rule() == Rule::clam_offset {
+                let prefix = format!("0:{}:", pattern_pair.as_str());
+                pattern_pair = inner.next().unwrap();
+                prefix
+            } else {
+                "0:*:".to_string()
+            };
+            let hex_signature = match pattern_pair.as_rule() {
+                Rule::clam_hex_signature => {
+                    validate_hex_signature(&pattern_pair.0)?;
+                    pattern_pair.as_str().to_string()
+                }
+                Rule::string => {
+                    let str = rules::unescape_string(pattern_pair.0)?;
+                    hex::encode(str)
+                }
+                _ => unreachable!("Unexpected rule {:?}", pattern_pair.as_rule()),
+            };
+            let hash = hash_sha1(&[&prefix, &hex_signature], 16);
+            let name = format!("ContexQL.Pattern.{hash}");
+            //let pattern = format!("{prefix}{hex_signature}");
+            VariableValue::ClamPattern { name, /*pattern*/ }
+        }
+        _ => unreachable!("rule {:?} => {}", value_pair.as_rule(), value_pair.as_str()),
+    };
+    variables.insert(name.to_string(), value);
+    Ok(())
+}
+
+fn to_sql_inner(
+    pair: PairWrapper,
+    rec: u32,
+    single_workid: bool,
+    variables: &mut HashMap<String, VariableValue>,
 ) -> Result<String, Box<pest::error::Error<Rule>>> {
     let mut res = String::new();
     trace!("Parsing: {}", pair.as_str());
@@ -67,7 +173,12 @@ pub fn to_sql(
                 res = format!("FROM objects AS {curobj} WHERE ");
             }
             for p in pair.into_inner() {
-                res += &to_sql(p, rec, single_workid)?;
+                if p.as_rule() == Rule::variable_definition {
+                    parse_variable_definition(p, variables)?;
+                }
+                else {
+                    res += &to_sql_inner(p, rec, single_workid, variables)?;
+                }
             }
         }
         Rule::string
@@ -78,7 +189,7 @@ pub fn to_sql(
             unreachable!("Invalid usage of Rule::string*. Use rules::unescape_string and format/escape string properly to context.");
         }
         Rule::constant_string => {
-            let string = escape_as_constant_string(pair.into_inner().next().unwrap().0)?;
+            let string = escape_pair_as_constant_string(pair.into_inner().next().unwrap().0)?;
             res += &string;
         }
         Rule::functions
@@ -86,16 +197,62 @@ pub fn to_sql(
         | Rule::functions_number
         | Rule::functions_string
         | Rule::op
-        | Rule::cond
         | Rule::glue => {
             for p in pair.into_inner() {
-                res += &to_sql(p, rec, single_workid)?;
+                res += &to_sql_inner(p, rec, single_workid, variables)?;
+            }
+        }
+        Rule::cond => {
+            #[derive(PartialEq)]
+            enum Type {
+                    Bool,
+                    Number,
+                    String,
+                    Other
+                }
+            let mut inner = pair.into_inner();
+            // safe
+            let left = inner.next().unwrap();
+            let expected_type = match left.as_rule() {
+                Rule::ident_bool | Rule::functions_bool | Rule::bool => Type::Bool,
+                Rule::ident_number | Rule::functions_number => Type::Number,
+                Rule::ident_string | Rule::functions_string => Type::String,
+                _ => unreachable!()
+            };
+            res += &to_sql_inner(left, rec, single_workid, variables)?;
+            if let Some(op) = inner.next() {
+                res += &to_sql_inner(op, rec, single_workid, variables)?;
+                // safe
+                let right = inner.next().unwrap();
+                if right.as_rule() == Rule::variable {
+                    let variable = get_variable(variables, &right.0)?;
+                    let (variable_type, variable_value) = match variable {
+                        VariableValue::Bool(v) => (Type::Bool, v.as_str()),
+                        VariableValue::Number(v) => (Type::Number, v.as_str()),
+                        VariableValue::String(v) => (Type::String, v.as_str()),
+                        VariableValue::DateTime { ..  } |
+                        VariableValue::ClamPattern { .. } => (Type::Other, ""),
+                    };
+                    if variable_type != expected_type {
+                        return Err(incompatible_variable(right.as_span()));
+                    }
+                    if variable_type == Type::String {
+                        let escaped_string = escape_string_as_constant_string(variable_value);
+                        res += &escaped_string;
+                    }
+                    else {
+                        res += variable_value;
+                    }
+                }
+                else {
+                    res += &to_sql_inner(right, rec, single_workid, variables)?;
+                }
             }
         }
         Rule::node => {
             res += "(";
             for p in pair.into_inner() {
-                res += &to_sql(p, rec, single_workid)?;
+                res += &to_sql_inner(p, rec, single_workid, variables)?;
             }
             res += ")";
         }
@@ -131,7 +288,7 @@ pub fn to_sql(
         Rule::get_hash_fn => {
             res += &format!(
                 "{curobj}.\"hashes\"->>{}",
-                escape_as_constant_string(pair.into_inner().next().unwrap().0)?
+                escape_pair_as_constant_string(pair.into_inner().next().unwrap().0)?
             );
         }
         Rule::has_symbol_fn => {
@@ -140,13 +297,23 @@ pub fn to_sql(
                 Rule::string => {
                     res += &format!(
                         "{curobj}.\"result\"->'ok'->'symbols'?{}",
-                        escape_as_constant_string(argument.0)?
+                        escape_pair_as_constant_string(argument.0)?
+                    );
+                }
+                Rule::variable => {
+                    let variable = get_variable(variables, &argument.0)?;
+                    let VariableValue::String(variable_value) = variable else {
+                        return Err(incompatible_variable(argument.as_span()));
+                    };
+                    res += &format!(
+                        "{curobj}.\"result\"->'ok'->'symbols'?{}",
+                        escape_string_as_constant_string(variable_value)
                     );
                 }
                 Rule::func_arg_regex | Rule::func_arg_iregex | Rule::func_arg_starts_with => {
                     res += &format!(
                         "{curobj}.\"result\"->'ok'->'symbols'@?'$?(@{})'",
-                        to_sql(argument, rec, single_workid)?
+                        to_sql_inner(argument, rec, single_workid, variables)?
                     );
                 }
                 _ => unreachable!(),
@@ -158,13 +325,23 @@ pub fn to_sql(
                     Rule::string => {
                         res += &format!(
                             "{curobj}.\"result\"->>'error'={}",
-                            escape_as_constant_string(argument.0)?
+                            escape_pair_as_constant_string(argument.0)?
+                        );
+                    }
+                    Rule::variable => {
+                        let variable = get_variable(variables, &argument.0)?;
+                        let VariableValue::String(variable_value) = variable else {
+                            return Err(incompatible_variable(argument.as_span()));
+                        };
+                        res += &format!(
+                            "{curobj}.\"result\"->>'error'={}",
+                            escape_string_as_constant_string(variable_value)
                         );
                     }
                     Rule::func_arg_regex | Rule::func_arg_iregex | Rule::func_arg_starts_with => {
                         res += &format!(
                             "{curobj}.\"result\"->'error'@?'$?(@{})'",
-                            to_sql(argument, rec, single_workid)?
+                            to_sql_inner(argument, rec, single_workid, variables)?
                         );
                     }
                     _ => unreachable!(),
@@ -177,10 +354,17 @@ pub fn to_sql(
             let argument = pair.into_inner().next().unwrap();
             let condition = match argument.as_rule() {
                 Rule::string => {
-                    format!("=={}", escape_as_json_string(argument.0)?)
+                    format!("=={}", escape_pair_as_json_string(argument.0)?)
+                }
+                Rule::variable => {
+                    let variable = get_variable(variables, &argument.0)?;
+                    let VariableValue::String(variable_value) = variable else {
+                        return Err(incompatible_variable(argument.as_span()));
+                    };
+                    format!("=={}", escape_string_as_json_string(variable_value))
                 }
                 Rule::func_arg_regex | Rule::func_arg_iregex | Rule::func_arg_starts_with => {
-                    to_sql(argument, rec, single_workid)?
+                    to_sql_inner(argument, rec, single_workid, variables)?
                 }
                 _ => unreachable!(),
             };
@@ -201,7 +385,7 @@ pub fn to_sql(
             };
             let mut inner = pair.into_inner();
             let node_def = match inner.next() {
-                Some(p) => format!(" AND {}", to_sql(p, rec + 1, single_workid)?),
+                Some(p) => format!(" AND {}", to_sql_inner(p, rec + 1, single_workid, variables)?),
                 None => String::new(),
             };
             let maxdepth_def = inner
@@ -226,7 +410,7 @@ pub fn to_sql(
             };
             let mut inner = pair.into_inner();
             let node_def = match inner.next() {
-                Some(p) => format!(" AND {}", to_sql(p, rec + 1, single_workid)?),
+                Some(p) => format!(" AND {}", to_sql_inner(p, rec + 1, single_workid, variables)?),
                 None => String::new(),
             };
             res += &format!(
@@ -236,13 +420,13 @@ pub fn to_sql(
         Rule::has_root_fn => {
             res += &format!(
                 "exists(SELECT 1 FROM objects AS {nextobj} WHERE {match_work} AND is_entry AND {})",
-                to_sql(pair.into_inner().next().unwrap(), rec + 1, single_workid)?
+                to_sql_inner(pair.into_inner().next().unwrap(), rec + 1, single_workid, variables)?
             );
         }
         Rule::has_parent_fn => {
             res += &format!(
                 "exists(SELECT 1 FROM objects AS {nextobj} WHERE {match_work} AND id = (SELECT parent FROM rels WHERE child = {curobj}.\"id\") AND {})",
-                to_sql(pair.into_inner().next().unwrap(), rec + 1, single_workid)?
+                to_sql_inner(pair.into_inner().next().unwrap(), rec + 1, single_workid, variables)?
             );
         }
         Rule::has_sibling_fn | Rule::count_siblings_fn => {
@@ -254,7 +438,7 @@ pub fn to_sql(
             };
             let mut inner = pair.into_inner();
             let node_def = match inner.next() {
-                Some(p) => format!(" AND {}", to_sql(p, rec + 1, single_workid)?),
+                Some(p) => format!(" AND {}", to_sql_inner(p, rec + 1, single_workid, variables)?),
                 None => String::new(),
             };
             res += &format!(
@@ -297,27 +481,59 @@ pub fn to_sql(
         }
         Rule::datetime => {
             let mut inner = pair.into_inner();
-            res += &to_sql(inner.next().unwrap(), rec + 1, single_workid)?;
+            res += &to_sql_inner(inner.next().unwrap(), rec + 1, single_workid, variables)?;
             res += " ";
-            res += &to_sql(inner.next().unwrap(), rec + 1, single_workid)?;
+            res += &to_sql_inner(inner.next().unwrap(), rec + 1, single_workid, variables)?;
         }
         Rule::date_range_fn => {
             let mut inner = pair.into_inner();
-            let start = to_sql(inner.next().unwrap(), rec + 1, single_workid)?;
-            let end_pair = inner.next().unwrap();
-            let interval = match end_pair.as_rule() {
-                Rule::date => "1",
-                Rule::datetime => "INTERVAL '1 seconds'",
-                _ => unreachable!(),
+            //safe
+            let start_pair = inner.next().unwrap();
+            let start = if start_pair.as_rule() == Rule::variable {
+                let variable = get_variable(variables, &start_pair.0)?;
+                let VariableValue::DateTime { date_string, .. } = variable else {
+                    return Err(incompatible_variable(start_pair.as_span()));
+                };
+                date_string.to_string()
+            }
+            else {
+                to_sql_inner(start_pair, rec + 1, single_workid, variables)?
             };
-            let end = to_sql(end_pair, rec + 1, single_workid)?;
+            //safe
+            let end_pair = inner.next().unwrap();
+            let (end, interval) = if end_pair.as_rule() == Rule::variable {
+                let variable = get_variable(variables, &end_pair.0)?;
+                let VariableValue::DateTime { date_string, interval } = variable else {
+                    return Err(incompatible_variable(end_pair.as_span()));
+                };
+                (date_string.to_string(), interval.as_str())
+            }
+            else {
+                let interval = match end_pair.as_rule() {
+                    Rule::date => "1",
+                    Rule::datetime => "INTERVAL '1 seconds'",
+                    _ => unreachable!(),
+                };
+                let end = to_sql_inner(end_pair, rec + 1, single_workid, variables)?;
+                (end,interval)
+            };
             res += &format!(
                 "{curobj}.t BETWEEN '{start}' AND (DATE '{end}'+{interval}-INTERVAL '1 microseconds')"
             );
         }
         Rule::date_since_fn => {
-            let mut inner = pair.into_inner();
-            let start = to_sql(inner.next().unwrap(), rec + 1, single_workid)?;
+            //safe
+            let pair = pair.into_inner().next().unwrap();
+            let start = if pair.as_rule() == Rule::variable {
+                let variable = get_variable(variables, &pair.0)?;
+                let VariableValue::DateTime { date_string, .. } = variable else {
+                    return Err(incompatible_variable(pair.as_span()));
+                };
+                date_string.to_string()
+            }
+            else {
+                to_sql_inner(pair, rec + 1, single_workid, variables)?
+            };
             res += &format!("{curobj}.t >= '{start}'",);
         }
         Rule::match_object_meta_fn
@@ -332,7 +548,7 @@ pub fn to_sql(
                 _ => unreachable!(),
             };
             let mut inner = pair.into_inner();
-            let path = &to_sql(inner.next().unwrap(), rec, single_workid)?;
+            let path = &to_sql_inner(inner.next().unwrap(), rec, single_workid, variables)?;
 
             let mut negate_query = false;
             let (jsonpath, match_length): (String, Option<String>) = if check_condition {
@@ -346,11 +562,29 @@ pub fn to_sql(
                     let mut match_length = String::new();
                     for pair in inner {
                         match_length += " ";
-                        match_length += &to_sql(pair, rec + 1, single_workid)?
+                        if pair.as_rule() == Rule::variable {
+                            let variable = get_variable(variables, &pair.0)?;
+                            let VariableValue::Number(variable_value) = variable else {
+                                return Err(incompatible_variable(pair.as_span()));
+                            };
+                            if variable_value.starts_with('-') {
+                                return Err(incompatible_variable(pair.as_span()));
+                            }
+                            match_length += variable_value;
+                        }
+                        else {
+                            match_length += &to_sql_inner(pair, rec + 1, single_workid, variables)?;
+                        }
                     }
                     (jsonpath, Some(match_length))
+                } else if pair.as_rule() == Rule::jsonpath_object_match {
+                    //safe
+                    let pair = pair.into_inner().next().unwrap();
+                    let node = to_sql_inner(pair, rec, single_workid, variables)?;
+                    (format!("{path} ? (@!=null && {node})"), None)
                 } else {
-                    let mut operator = to_sql(pair, rec, single_workid)?;
+                    let comparison = pair.as_rule() == Rule::compares;
+                    let mut operator = to_sql_inner(pair, rec, single_workid, variables)?;
                     if ["!=", "<>"].contains(&operator.as_str()) {
                         operator = "==".to_string();
                         negate_query = true;
@@ -360,10 +594,20 @@ pub fn to_sql(
                         Some(pair) => {
                             let r = pair.as_rule();
                             compare_two_variables = r == Rule::jsonpath_path_simple;
-                            if r == Rule::string {
-                                escape_as_json_string(pair.0)?
-                            } else {
-                                to_sql(pair, rec, single_workid)?
+                            match r {
+                                Rule::string => escape_pair_as_json_string(pair.0)?,
+                                Rule::variable => {
+                                    let variable = get_variable(variables, &pair.0)?;
+                                    match variable {
+                                        VariableValue::Bool(v) if !comparison => v.to_string(),
+                                        VariableValue::Number(v) => v.to_string(),
+                                        VariableValue::String(v) if !comparison => escape_string_as_json_string(v),
+                                        _ => {
+                                            return Err(incompatible_variable(pair.as_span()));
+                                        }
+                                    }
+                                }
+                                _ => to_sql_inner(pair, rec, single_workid, variables)?
                             }
                         }
                         None => String::new(),
@@ -405,22 +649,142 @@ pub fn to_sql(
                 Rule::func_arg_iregex => " flag \"i\"",
                 _ => unreachable!(),
             };
-            let mut inner = pair.into_inner();
-            let regex = escape_as_json_string(inner.next().unwrap().0)?;
-            res += &format!(" like_regex {regex}{flag}");
+            //safe
+            let pair = pair.into_inner().next().unwrap();
+            if pair.as_rule() == Rule::variable {
+                let variable = get_variable(variables, &pair.0)?;
+                let VariableValue::String(variable_value) = variable else {
+                    return Err(incompatible_variable(pair.as_span()));
+                };
+                let regex = escape_string_as_json_string(variable_value);
+                res += &format!(" like_regex {regex}{flag}");
+            }
+            else {
+                let regex = escape_pair_as_json_string(pair.0)?;
+                res += &format!(" like_regex {regex}{flag}");
+            }
         }
         Rule::func_arg_starts_with => {
-            let mut inner = pair.into_inner();
-            res += &format!(
-                " starts with {}",
-                escape_as_json_string(inner.next().unwrap().0)?
-            );
+            //safe
+            let pair = pair.into_inner().next().unwrap();
+            if pair.as_rule() == Rule::variable {
+                let variable = get_variable(variables, &pair.0)?;
+                let VariableValue::String(variable_value) = variable else {
+                    return Err(incompatible_variable(pair.as_span()));
+                };
+                let prefix = escape_string_as_json_string(variable_value);
+                res += &format!(" starts with {prefix}");
+            }
+            else {
+                let prefix = escape_pair_as_json_string(pair.0)?;
+                res += &format!(" starts with {prefix}");
+            }
         }
         Rule::jsonpath_path_simple => {
             res += "$";
             for p in pair.into_inner() {
-                res += &to_sql(p, rec, single_workid)?;
+                res += &to_sql_inner(p, rec, single_workid, variables)?;
             }
+        }
+        Rule::jsonpath_object_match_condition_node => {
+            res += "(";
+            for p in pair.into_inner() {
+                let v = if p.as_rule() == Rule::glue {
+                    match p.as_str().to_lowercase().as_str() {
+                        "and" => "&&",
+                        "or" => "||",
+                        v => v,
+                    }.to_string()
+                } else {
+                    to_sql_inner(p, rec, single_workid, variables)?
+                };
+                res += &v;
+            }
+            res += ")";
+        }
+        Rule::jsonpath_object_match_condition_simple => {
+            let mut inner = pair.into_inner();
+            //safe
+            let id = to_sql_inner(inner.next().unwrap(), rec, single_workid, variables)?;
+            //safe
+            let op_pair = inner.next().unwrap();
+            match op_pair.as_rule() {
+                Rule::jsonpath_object_match_equals | Rule::jsonpath_object_match_compares=> {
+                    let mut inner = op_pair.into_inner();
+                    //safe
+                    let op_pair = inner.next().unwrap();
+                    let op = op_pair.as_str();
+                    let (op,negate) = {
+                        if ["!=", "<>"].contains(&op) {
+                            ("!=", true)
+                        }
+                        else {
+                            (op, false)
+                        }
+                    };
+                    //safe
+                    let val_pair = inner.next().unwrap();
+                    let mut negate_type = if negate {
+                        match val_pair.as_rule() {
+                            Rule::string => Some("string"),
+                            Rule::number => Some("number"),
+                            Rule::bool => Some("boolean"),
+                            _ => None
+                        }
+                    } else {
+                        None
+                    };
+                    let val = match val_pair.as_rule() {
+                        Rule::variable => {
+                            let variable = get_variable(variables, &val_pair.0)?;
+                            if op_pair.as_rule() == Rule::jsonpath_object_match_compares {
+                                let VariableValue::Number(val) = variable else {
+                                    return Err(incompatible_variable(val_pair.as_span()));
+                                };
+                                val.to_string()
+                            }
+                            else {
+                                if negate {
+                                    negate_type = match variable {
+                                        VariableValue::String(_) => Some("string"),
+                                        VariableValue::Number(_) => Some("number"),
+                                        VariableValue::Bool(_) => Some("boolean"),
+                                        _ => None
+                                    };
+                                }
+                                match variable {
+                                    VariableValue::Bool(v) => v.to_string(),
+                                    VariableValue::Number(v) => v.to_string(),
+                                    VariableValue::String(v) => escape_string_as_json_string(v),
+                                    VariableValue::DateTime { .. } |
+                                    VariableValue::ClamPattern { .. } => return Err(incompatible_variable(val_pair.as_span()))
+                                }
+                            }
+                        }
+                        Rule::string => escape_pair_as_json_string(val_pair.0)?,
+                        _ => to_sql_inner(val_pair, rec, single_workid, variables)?
+                    };
+                    if let Some(negate_type) = negate_type {
+                        res += &format!(r#"({id}{op}{val} || {id}.type()!="{negate_type}")"#)
+                    } else {
+                        res += &format!("{id}{op}{val}")
+                    }
+                }
+                Rule::func_arg_regex |
+                Rule::func_arg_iregex |
+                Rule::func_arg_starts_with => {
+                    let func = to_sql_inner(op_pair, rec, single_workid, variables)?;
+                    res += &format!("{id}{func}")
+                }
+                _ => unreachable!()
+            };
+
+
+        }
+        Rule::jsonpath_object_match_id => {
+            res += "@";
+            //safe
+            res += &to_sql_inner(pair.into_inner().next().unwrap(), rec,single_workid,variables)?;
         }
         Rule::jsonpath_ident => {
             let raw = pair.as_str().trim().to_string();
@@ -428,7 +792,7 @@ pub fn to_sql(
                 if pair.as_rule() != Rule::string_regular {
                     unreachable!();
                 }
-                res += &escape_as_json_string(pair)?;
+                res += &escape_pair_as_json_string(pair)?;
             } else {
                 res += &raw;
             }
@@ -439,39 +803,52 @@ pub fn to_sql(
         Rule::jsonpath_selector_identifier => {
             res += ".";
             let mut inner = pair.into_inner();
-            res += &to_sql(inner.next().unwrap(), rec, single_workid)?;
+            res += &to_sql_inner(inner.next().unwrap(), rec, single_workid, variables)?;
         }
         Rule::jsonpath_selector_index => {
             let mut inner = pair.into_inner();
             res += &format!(
                 "[{}]",
-                to_sql(inner.next().unwrap(), rec, single_workid)?.trim()
+                to_sql_inner(inner.next().unwrap(), rec, single_workid, variables)?.trim()
             );
         }
         Rule::match_pattern_fn => {
-            let mut inner = pair.into_inner().next().unwrap().into_inner();
-            let mut pattern_pair = inner.next().unwrap();
-            let prefix = if pattern_pair.as_rule() == Rule::clam_offset {
-                let prefix = format!("0:{}:", pattern_pair.as_str());
-                pattern_pair = inner.next().unwrap();
-                prefix
+            //safe
+            let pair =  pair.into_inner().next().unwrap();
+            let signature_name = if pair.as_rule() == Rule::variable {
+                let variable = get_variable(variables, &pair.0)?;
+                let VariableValue::ClamPattern { name, .. } = variable else {
+                    return Err(incompatible_variable(pair.as_span()));
+                };
+                name.to_string()
             }
             else {
-                "0:*:".to_string()
-            };
-            let hex_signature = match pattern_pair.as_rule() {
-                Rule::clam_hex_signature => {
-                    validate_hex_signature(&pattern_pair.0)?;
-                    pattern_pair.as_str().to_string()
+                let mut inner = pair.into_inner();
+                //safe
+                let mut pattern_pair = inner.next().unwrap();
+                let prefix = if pattern_pair.as_rule() == Rule::clam_offset {
+                    let prefix = format!("0:{}:", pattern_pair.as_str());
+                    //safe
+                    pattern_pair = inner.next().unwrap();
+                    prefix
                 }
-                Rule::string => {
-                    let str = rules::unescape_string(pattern_pair.0)?;
-                    hex::encode(str)
-                }
-                _ => unreachable!("Unexpected rule {:?}", pattern_pair.as_rule())
+                else {
+                    "0:*:".to_string()
+                };
+                let hex_signature = match pattern_pair.as_rule() {
+                    Rule::clam_hex_signature => {
+                        validate_hex_signature(&pattern_pair.0)?;
+                        pattern_pair.as_str().to_string()
+                    }
+                    Rule::string => {
+                        let str = rules::unescape_string(pattern_pair.0)?;
+                        hex::encode(str)
+                    }
+                    _ => unreachable!("Unexpected rule {:?}", pattern_pair.as_rule())
+                };
+                let hash = hash_sha1(&[&prefix, &hex_signature], 16);
+                format!("ContexQL.Pattern.{hash}")
             };
-            let hash = hash_sha1(&[&prefix, &hex_signature], 16);
-            let signature_name = format!("ContexQL.Pattern.{hash}");
             res += &format!(
                 "{curobj}.\"result\"->'ok'->'symbols'?{}",
                 postgres_protocol::escape::escape_literal(&signature_name)
@@ -510,39 +887,52 @@ pub fn to_sql(
         // | Rule::clam_subsig
         // | Rule::clam_pcre_set
         // | Rule::clam_pcre
+        | Rule::variable
+        | Rule::variable_bool
+        | Rule::variable_number
+        | Rule::variable_string
+        | Rule::variable_date
+        | Rule::variable_clam_pattern
+        | Rule::variable_value
+        | Rule::variable_definition
+        | Rule::jsonpath_object_match
+        | Rule::jsonpath_object_match_condition
+        | Rule::jsonpath_object_match_equals
+        | Rule::jsonpath_object_match_compares
         => unreachable!(),
-
     }
     Ok(res)
 }
 
-fn modify_pest_error(mut error: pest::error::Error<Rule>) -> pest::error::Error<Rule> {
-    use pest::error::ErrorVariant;
-    let mut change_to_custom_error = false;
-    match &mut error.variant {
-        ErrorVariant::ParsingError {
-            positives,
-            negatives,
-        } => {
-            positives.retain(|v| *v != Rule::COMMENT);
-            if positives.is_empty() && negatives.is_empty() {
-                change_to_custom_error = true;
-            }
-        }
-        ErrorVariant::CustomError { .. } => {}
-    };
-    if change_to_custom_error {
-        error.variant = ErrorVariant::CustomError {
-            message: "comment, function or complete rule".to_string(),
-        }
-    }
-    error
+fn get_variable<'a>(
+    variables: &'a HashMap<String, VariableValue>,
+    pair: &Pair<'_, Rule>,
+) -> Result<&'a VariableValue, Box<pest::error::Error<Rule>>> {
+    variables.get(pair.as_str()).ok_or_else(|| {
+        pest::error::Error::new_from_span(
+            pest::error::ErrorVariant::CustomError {
+                message: "defined variable".to_string(),
+            },
+            pair.as_span(),
+        )
+        .into()
+    })
+}
+
+fn incompatible_variable(span: pest::Span) -> Box<pest::error::Error<Rule>> {
+    pest::error::Error::new_from_span(
+        pest::error::ErrorVariant::CustomError {
+            message: "compatible variable".to_string(),
+        },
+        span,
+    )
+    .into()
 }
 
 pub fn parse_to_sql<S: AsRef<str> + std::fmt::Display>(
     expr: S,
 ) -> Result<String, Box<pest::error::Error<Rule>>> {
-    let mut parsed = RuleParser::parse(Rule::rule, expr.as_ref()).map_err(modify_pest_error)?;
+    let mut parsed = RuleParser::parse(Rule::rule, expr.as_ref())?;
     let parsed = parsed.next().unwrap(); // cannot fail: rule matches from SOI to EOI
     let res = to_sql(PairWrapper(parsed), 0, false);
     debug!("parse_to_sql({}) => {:?}", expr, res);
@@ -552,7 +942,7 @@ pub fn parse_to_sql<S: AsRef<str> + std::fmt::Display>(
 pub fn parse_to_sql_single_work<S: AsRef<str> + std::fmt::Display>(
     expr: S,
 ) -> Result<String, Box<pest::error::Error<Rule>>> {
-    let mut parsed = RuleParser::parse(Rule::rule, expr.as_ref()).map_err(modify_pest_error)?;
+    let mut parsed = RuleParser::parse(Rule::rule, expr.as_ref())?;
     let parsed = parsed.next().unwrap(); // cannot fail: rule matches from SOI to EOI
     let res = to_sql(PairWrapper(parsed), 0, true);
     debug!("parse_to_sql_single_work({}) => {:?}", expr, res);
@@ -563,7 +953,7 @@ pub fn parse_and_extract_clam_signatures<S: AsRef<str> + std::fmt::Display>(
     expr: S,
 ) -> Result<Vec<String>, Box<pest::error::Error<Rule>>> {
     let mut result = Vec::new();
-    let mut parsed = RuleParser::parse(Rule::rule, expr.as_ref()).map_err(modify_pest_error)?;
+    let mut parsed = RuleParser::parse(Rule::rule, expr.as_ref())?;
     let parsed = parsed.next().unwrap(); // cannot fail: rule matches from SOI to EOI
     extract_clam_signatures(parsed, &mut result);
     Ok(result)
@@ -598,17 +988,27 @@ fn extract_clam_signatures(pair: pest::iterators::Pair<Rule>, result: &mut Vec<S
     }
 }
 
-fn escape_as_constant_string(
+fn escape_pair_as_constant_string(
     pair: pest::iterators::Pair<Rule>,
 ) -> Result<String, Box<pest::error::Error<Rule>>> {
-    let input = rules::unescape_string(pair)?.replace('\0', "\u{f2b3}");
-    Ok(postgres_protocol::escape::escape_literal(&input))
+    let input = rules::unescape_string(pair)?;
+    Ok(escape_string_as_constant_string(&input))
 }
 
-fn escape_as_json_string(
+fn escape_string_as_constant_string(input: &str) -> String {
+    let input = input.replace('\0', "\u{f2b3}");
+    postgres_protocol::escape::escape_literal(&input)
+}
+
+fn escape_pair_as_json_string(
     pair: pest::iterators::Pair<Rule>,
 ) -> Result<String, Box<pest::error::Error<Rule>>> {
     let input = rules::unescape_string(pair)?.replace('\0', "\u{f2b3}");
+    Ok(escape_string_as_json_string(&input))
+}
+
+fn escape_string_as_json_string(input: &str) -> String {
+    let input = input.replace('\0', "\u{f2b3}");
     let mut result = '"'.to_string();
     for c in input.chars() {
         match c {
@@ -637,7 +1037,7 @@ fn escape_as_json_string(
         }
     }
     result.push('"');
-    Ok(result)
+    result
 }
 
 fn validate_hex_signature(
@@ -788,244 +1188,4 @@ fn hash_sha1(input: &[&str], byte_limit: usize) -> String {
     let hash = hasher.finalize();
     let slice = &hash.as_slice()[0..byte_limit.min(hash.len())];
     hex::encode(slice)
-}
-
-#[cfg(test)]
-use std::error::Error;
-use std::fmt::Debug;
-
-#[cfg(test)]
-fn parse_rule(r: rules::Rule, input: &str) -> Result<String, Box<dyn Error>> {
-    let mut parsed = RuleParser::parse(r, input)?;
-    let parsed = parsed.next().ok_or("Pairs<Rule> is empty")?;
-    Ok(to_sql(PairWrapper(parsed), 0, false)?)
-}
-
-#[test]
-fn test_jsonpath() {
-    use rules::Rule::functions;
-
-    assert_eq!(
-        parse_rule(functions, "@match_object_meta(/*comment*/$x == 1)").unwrap(),
-        "(\"objects_0\".result @? '$.ok.object_metadata.x' AND \"objects_0\".result->'ok'->'object_metadata' @? '$.x ? (@!=null && @==1)')"
-    );
-    assert_eq!(
-        parse_rule(functions, "@match_object_meta($x.y.z /*comment*/== 1)").unwrap(),
-        "(\"objects_0\".result @? '$.ok.object_metadata.x.y.z' AND \"objects_0\".result->'ok'->'object_metadata' @? '$.x.y.z ? (@!=null && @==1)')"
-    );
-    assert_eq!(
-        parse_rule(functions, "@match_object_meta($x[0].z // single line comment
-        == 1)").unwrap(),
-        "(\"objects_0\".result @? '$.ok.object_metadata.x[0].z' AND \"objects_0\".result->'ok'->'object_metadata' @? '$.x[0].z ? (@!=null && @==1)')"
-    );
-    assert_eq!(
-        parse_rule(functions, "@match_object_meta(/*
-        multiline comment
-        */$x[0][0] == 1)").unwrap(),
-        "(\"objects_0\".result @? '$.ok.object_metadata.x[0][0]' AND \"objects_0\".result->'ok'->'object_metadata' @? '$.x[0][0] ? (@!=null && @==1)')"
-    );
-    assert_eq!(
-        parse_rule(functions, "@match_object_meta($x > 1)").unwrap(),
-        "(\"objects_0\".result @? '$.ok.object_metadata.x' AND \"objects_0\".result->'ok'->'object_metadata' @? '$.x ? (@!=null && @>1)')"
-    );
-    assert_eq!(
-        parse_rule(functions, "@match_object_meta($x == \"x\")").unwrap(),
-        "(\"objects_0\".result @? '$.ok.object_metadata.x' AND \"objects_0\".result->'ok'->'object_metadata' @? '$.x ? (@!=null && @==\"x\")')"
-    );
-    assert_eq!(
-        parse_rule(functions, "@match_object_meta($x != true)").unwrap(),
-        "NOT (\"objects_0\".result @? '$.ok.object_metadata.x' AND \"objects_0\".result->'ok'->'object_metadata' @? '$.x ? (@!=null && @==true)')"
-    );
-    assert_eq!(
-        parse_rule(functions, "@match_object_meta($x regex(\"^x\"))").unwrap(),
-        "(\"objects_0\".result @? '$.ok.object_metadata.x' AND \"objects_0\".result->'ok'->'object_metadata' @? '$.x ? (@!=null && @ like_regex \"^x\")')"
-    );
-    assert_eq!(
-        parse_rule(functions, "@match_object_meta($x iregex(\"^x\"))").unwrap(),
-        "(\"objects_0\".result @? '$.ok.object_metadata.x' AND \"objects_0\".result->'ok'->'object_metadata' @? '$.x ? (@!=null && @ like_regex \"^x\" flag \"i\")')"
-    );
-    assert_eq!(
-        parse_rule(functions, "@match_object_meta($x starts_with(\"x\"))").unwrap(),
-        "(\"objects_0\".result @? '$.ok.object_metadata.x' AND \"objects_0\".result->'ok'->'object_metadata' @? '$.x ? (@!=null && @ starts with \"x\")')"
-    );
-    assert_eq!(
-        parse_rule(
-            Rule::rule,
-            "@has_object_meta($possible_passwords) && !@has_object_meta($programming_language)"
-        )
-        .unwrap(),
-        "FROM objects AS \"objects_0\" WHERE ((\"objects_0\".result @? '$.ok.object_metadata.possible_passwords' AND \"objects_0\".result->'ok'->'object_metadata' @? '$.possible_passwords ? (@!=null)') AND NOT (\"objects_0\".result @? '$.ok.object_metadata.programming_language' AND \"objects_0\".result->'ok'->'object_metadata' @? '$.programming_language ? (@!=null)'))"
-    );
-    assert_eq!(
-        parse_rule(Rule::functions, "@match_object_meta($a.b.c.len()==1)").unwrap(),
-        "(exists (SELECT 1 FROM jsonb_path_query(\"objects_0\".result, '$.ok.object_metadata.a.b.c ? (@.type() == \"string\")') AS value WHERE length(value #>> '{}') = 1))"
-    );
-    assert_eq!(
-        parse_rule(Rule::functions, "@match_object_meta($a.b[0].c.len()!=1)").unwrap(),
-        "(exists (SELECT 1 FROM jsonb_path_query(\"objects_0\".result, '$.ok.object_metadata.a.b[0].c ? (@.type() == \"string\")') AS value WHERE length(value #>> '{}') <> 1))"
-    );
-}
-
-#[test]
-fn test_escaping() {
-    use rules::Rule::constant_string;
-    assert_eq!(
-        parse_rule(constant_string, r#""string""#).unwrap(),
-        "'string'"
-    );
-    assert_eq!(
-        parse_rule(constant_string, r#""str'ing""#).unwrap(),
-        "'str''ing'"
-    );
-    assert_eq!(
-        parse_rule(constant_string, r#""str\"ing""#).unwrap(),
-        "'str\"ing'"
-    );
-    assert_eq!(
-        parse_rule(constant_string, r#""str\ting""#).unwrap(),
-        "'str\ting'"
-    );
-    assert_eq!(
-        parse_rule(constant_string, r#""str\ning""#).unwrap(),
-        "'str\ning'"
-    );
-    assert_eq!(parse_rule(constant_string, r#""\u0041""#).unwrap(), "'A'");
-    assert_eq!(
-        parse_rule(constant_string, r#""1' UNION SELECT 'a'; -- -'""#).unwrap(),
-        "'1'' UNION SELECT ''a''; -- -'''"
-    );
-    assert_eq!(
-        parse_rule(constant_string, r#""a\"\\/\n\r\t\u0041z""#).unwrap(),
-        " E'a\"\\\\/\n\r\tAz'"
-    );
-    assert_eq!(
-        parse_to_sql(r#"@match_object_meta($x == "a'b_\n_z")"#),
-        Ok("FROM objects AS \"objects_0\" WHERE ((\"objects_0\".result @? '$.ok.object_metadata.x' AND \"objects_0\".result->'ok'->'object_metadata' @? '$.x ? (@!=null && @==\"a''b_\\n_z\")'))".to_string()),
-    );
-    assert_eq!(
-        parse_to_sql(r#"@has_object_meta($"injection'; delete from db; --")"#),
-        Ok("FROM objects AS \"objects_0\" WHERE ((\"objects_0\".result @? '$.ok.object_metadata.\"injection''; delete from db; --\"' AND \"objects_0\".result->'ok'->'object_metadata' @? '$.\"injection''; delete from db; --\" ? (@!=null)'))".to_string()),
-    );
-}
-
-#[test]
-fn test_date_functions() {
-    use rules::Rule::rule;
-    assert_eq!(
-        parse_rule(rule, r#"@date_since("2000-01-01")"#).unwrap(),
-        "FROM objects AS \"objects_0\" WHERE (\"objects_0\".t >= '2000-01-01')"
-    );
-    assert!(parse_rule(rule, r#"@date_since("2000-02-30")"#).is_err());
-    assert_eq!(
-        parse_rule(rule, r#"@date_since("2000-01-01 11:22:33")"#).unwrap(),
-        "FROM objects AS \"objects_0\" WHERE (\"objects_0\".t >= '2000-01-01 11:22:33')"
-    );
-    assert!(parse_rule(rule, r#"@date_since("2000-02-30 11:60:33")"#).is_err());
-    assert_eq!(
-        parse_rule(rule, r#"@date_range("2000-01-01", "2000-01-01")"#).unwrap(),
-        "FROM objects AS \"objects_0\" WHERE (\"objects_0\".t BETWEEN '2000-01-01' AND (DATE '2000-01-01'+1-INTERVAL '1 microseconds'))"
-    );
-    assert_eq!(
-        parse_rule(rule, r#"@date_range("2000-01-01 00:00:00", "2000-01-01 00:00:00")"#).unwrap(),
-        "FROM objects AS \"objects_0\" WHERE (\"objects_0\".t BETWEEN '2000-01-01 00:00:00' AND (DATE '2000-01-01 00:00:00'+INTERVAL '1 seconds'-INTERVAL '1 microseconds'))"
-    );
-}
-
-#[test]
-fn test_clam_signatures() {
-    use rules::Rule::rule;
-    let input = "@match_pattern(deadbeef)";
-    assert_eq!(
-        parse_rule(rule, input).unwrap(),
-        "FROM objects AS \"objects_0\" WHERE (\"objects_0\".\"result\"->'ok'->'symbols'?'ContexQL.Pattern.17b1d1bc76fbe993810df1a1c50a35a5')"
-    );
-    let signatures: Vec<String> = parse_and_extract_clam_signatures(input).unwrap();
-    assert_eq!(
-        signatures,
-        ["ContexQL.Pattern.17b1d1bc76fbe993810df1a1c50a35a5:0:*:deadbeef"]
-    );
-
-    let input = r"@match_pattern(deadbeef)
-                        && @has_child(@match_pattern(EOF-50:e80?000000{-10}5bb9??(00|01)0000{-10}03d9{-10}8b1b{-25}3bd977{-10}cd20))";
-    assert_eq!(
-        parse_rule(rule, input).unwrap(),
-        "FROM objects AS \"objects_0\" WHERE (\"objects_0\".\"result\"->'ok'->'symbols'?'ContexQL.Pattern.17b1d1bc76fbe993810df1a1c50a35a5' AND exists(SELECT 1 FROM objects AS \"objects_1\" WHERE \"objects_1\".work_id = \"objects_0\".work_id AND id IN (SELECT child FROM rels WHERE parent = \"objects_0\".\"id\") AND (\"objects_1\".\"result\"->'ok'->'symbols'?'ContexQL.Pattern.5060229c6fb892c23264eedd9eebf9f3')))"
-    );
-    let signatures: Vec<String> = parse_and_extract_clam_signatures(input).unwrap();
-    assert_eq!(
-        signatures,
-        [
-            r"ContexQL.Pattern.17b1d1bc76fbe993810df1a1c50a35a5:0:*:deadbeef",
-            r"ContexQL.Pattern.5060229c6fb892c23264eedd9eebf9f3:0:EOF-50:e80?000000{-10}5bb9??(00|01)0000{-10}03d9{-10}8b1b{-25}3bd977{-10}cd20"
-        ]
-    );
-
-    let input = r"@match_pattern(acab)";
-    assert_eq!(
-        parse_rule(rule, input).unwrap(),
-        r#"FROM objects AS "objects_0" WHERE ("objects_0"."result"->'ok'->'symbols'?'ContexQL.Pattern.9a349c208c5e13c6bafdee32d17cf71e')"#
-    );
-    let signatures: Vec<String> = parse_and_extract_clam_signatures(input).unwrap();
-    assert_eq!(
-        signatures,
-        ["ContexQL.Pattern.9a349c208c5e13c6bafdee32d17cf71e:0:*:acab"]
-    );
-
-    let input = r#"@match_pattern(*:696e766f696365)"#;
-    assert_eq!(
-        parse_rule(rule, input).unwrap(),
-        r#"FROM objects AS "objects_0" WHERE ("objects_0"."result"->'ok'->'symbols'?'ContexQL.Pattern.545e8c5d3f61e38fe8d64e05727d36c1')"#
-    );
-    let signatures: Vec<String> = parse_and_extract_clam_signatures(input).unwrap();
-    assert_eq!(
-        signatures,
-        ["ContexQL.Pattern.545e8c5d3f61e38fe8d64e05727d36c1:0:*:696e766f696365"]
-    );
-
-    let input = r#"@match_pattern(*:r"invoice")"#;
-    assert_eq!(
-        parse_rule(rule, input).unwrap(),
-        r#"FROM objects AS "objects_0" WHERE ("objects_0"."result"->'ok'->'symbols'?'ContexQL.Pattern.545e8c5d3f61e38fe8d64e05727d36c1')"#
-    );
-    let signatures: Vec<String> = parse_and_extract_clam_signatures(input).unwrap();
-    assert_eq!(
-        signatures,
-        ["ContexQL.Pattern.545e8c5d3f61e38fe8d64e05727d36c1:0:*:696e766f696365"]
-    );
-}
-
-#[test]
-fn test_comments() {
-    let queries = [
-        "/**/is_entry/**/",
-        "/**/is_entry/**/==/**/false/**/",
-        "is_entry/**/&&/**/size/**/==/**/1/**/",
-        "/**/(/**/is_entry/**/&&/**/(/**/is_entry/**/)/**/)/**/",
-        r#"/**/@has_name/**/(/**/"name"/**/)/**/"#,
-        r#"/**/@has_name/**/(/**/regex(/**/"name"/**/)/**/)/**/"#,
-        r#"/**/@has_name/**/(/**/iregex(/**/"name"/**/)/**/)/**/"#,
-        r#"/**/@has_name/**/(/**/starts_with(/**/"name"/**/)/**/)/**/"#,
-        r#"@date_since(/**/"2024-09-26"/**/)"#,
-        r#"@date_range(/**/"2024-09-26"/**/,/**/"2024-09-26"/**/)"#,
-        "@match_object_meta(/**/$/**/key/**/./**/key/**/[/**/0/**/]/**/==/**/1/**/)",
-        r#"@match_object_meta($key/**/regex(/**/"value"/**/)/**/)"#,
-        r#"@match_pattern(/**/"asdf"/**/)"#,
-        r#"@match_pattern(/**/aabb*ccdd[2-4]ee/**/)"#,
-    ];
-    for query in queries {
-        match parse_to_sql(query) {
-            Ok(sql) => {
-                if sql.contains("/*") {
-                    println!("QUERY: {query}");
-                    println!("SQL: {sql}");
-                    panic!("There were errors");
-                }
-            }
-            Err(err) => {
-                println!("QUERY: {query}");
-                println!("ERR: {err}");
-                panic!("There were errors");
-            }
-        }
-    }
 }

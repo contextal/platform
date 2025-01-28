@@ -107,8 +107,53 @@ fn process_request(
             path,
             symbols: entry_symbols,
             relation_metadata: serde_json::Map::<String, Value>::new(),
-            force_type: Some("Text".to_string()),
+            force_type: Some("Text/OCR".to_string()),
         });
+    }
+
+    if let Some(qrcode) = image_info.qrcode {
+        let mut bytes = qrcode.data.as_bytes();
+        let mut file = tempfile::NamedTempFile::new_in(&config.output_path)?;
+        let mut writer =
+            ctxutils::io::LimitedWriter::new(file.as_file_mut(), config.max_child_output_size);
+        let mut entry_symbols = vec!["QRCODE".to_string()];
+        let path = match std::io::copy(&mut bytes, &mut writer) {
+            Ok(_) => {
+                let output_file = file
+                    .into_temp_path()
+                    .keep()?
+                    .into_os_string()
+                    .into_string()
+                    .map_err(|s| {
+                        std::io::Error::new(
+                            std::io::ErrorKind::Other,
+                            format!("failed to convert OsString {s:?} to String"),
+                        )
+                    })?;
+                Some(output_file)
+            }
+            Err(e) => match e.kind() {
+                std::io::ErrorKind::Other => {
+                    entry_symbols.push("TOOBIG".to_string());
+                    limits_reached = true;
+                    None
+                }
+                _ => {
+                    return Err(e);
+                }
+            },
+        };
+        if path.is_some() {
+            children.push(BackendResultChild {
+                path,
+                symbols: entry_symbols,
+                force_type: Some("Text/QR-Code".to_string()),
+                relation_metadata: match serde_json::to_value(qrcode).unwrap() {
+                    serde_json::Value::Object(v) => v,
+                    _ => unreachable!(),
+                },
+            });
+        }
     }
 
     let mut symbols = Vec::<String>::new();
@@ -126,9 +171,24 @@ fn process_request(
     }))
 }
 
+#[derive(Serialize)]
+struct QrMeta {
+    size: usize,
+    ecc_level: u16,
+    mask: u16,
+}
+
+#[derive(Serialize)]
+struct QrCode {
+    qrcode: Vec<QrMeta>,
+    #[serde(skip_serializing)]
+    data: String,
+}
+
 struct ImageInfo {
     metadata: ImageInfoMetadata,
     ocr: Option<String>,
+    qrcode: Option<QrCode>,
 }
 
 #[derive(Serialize)]
@@ -573,6 +633,32 @@ impl ImageInfo {
             }
         }
 
+        // QR Code processing
+        let qrcode = {
+            let img = image.to_luma8();
+            let mut img = rqrr::PreparedImage::prepare(img);
+            let grids = img.detect_grids();
+            let mut meta = vec![];
+            let mut data = String::new();
+            for grid in grids.iter() {
+                if let Ok((m, content)) = grid.decode() {
+                    if !content.is_empty() {
+                        data += &(content + "\n");
+                        meta.push(QrMeta {
+                            size: m.version.to_size(),
+                            ecc_level: m.ecc_level,
+                            mask: m.mask,
+                        });
+                    }
+                }
+            }
+            if data.is_empty() {
+                None
+            } else {
+                Some(QrCode { qrcode: meta, data })
+            }
+        };
+
         // NSFW detection
         let (nsfw_predictions, nsfw_verdict) = if detect_nsfw {
             let nsfw_model = if let Some(nsfw_model) = &global_context.nsfw_model {
@@ -625,7 +711,11 @@ impl ImageInfo {
             laplacian_variance,
         };
 
-        Ok(ImageInfo { metadata, ocr })
+        Ok(ImageInfo {
+            metadata,
+            ocr,
+            qrcode,
+        })
     }
 }
 

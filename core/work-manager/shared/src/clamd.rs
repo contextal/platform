@@ -79,12 +79,13 @@ impl Clamd {
     pub async fn get_symbols(
         &self,
         object_id: &str,
-    ) -> Result<Vec<String>, Box<dyn std::error::Error>> {
+    ) -> Result<(Vec<String>, f64), Box<dyn std::error::Error>> {
         let start = std::time::Instant::now();
         let res = self.get_result_common(object_id, true).await?;
         metrics::counter!(SCAN_COUNT).increment(1);
-        metrics::histogram!(SCAN_TIME).record(start.elapsed().as_secs_f64());
-        Ok(res)
+        let scan_time = start.elapsed().as_secs_f64();
+        metrics::histogram!(SCAN_TIME).record(scan_time);
+        Ok((res, scan_time))
     }
 
     /// Retrieves a single Clamd scan result

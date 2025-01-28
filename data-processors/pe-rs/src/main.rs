@@ -59,9 +59,9 @@ fn process_sfx<R: Read + Seek>(
                     .unwrap(),
             ),
             force_type: match arch.pattern().as_u32() {
-                0 => Some("Rar".to_string()),
-                1 => Some("Zip".to_string()),
-                2 => Some("7Z".to_string()),
+                0 => Some("RAR".to_string()),
+                1 => Some("ZIP".to_string()),
+                2 => Some("7z".to_string()),
                 _ => None,
             },
             symbols: vec!["SFX".to_string()],

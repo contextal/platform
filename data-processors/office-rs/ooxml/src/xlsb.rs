@@ -305,6 +305,7 @@ impl<R: Read + Seek> BinarySheet<R> {
                         size: 0,
                         index: row_index,
                         columns: Vec::new(),
+                        regions: 0,
                     });
                 }
                 RecordType::CellBool

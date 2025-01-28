@@ -28,6 +28,20 @@ use tokio::sync::mpsc::UnboundedReceiver;
 #[allow(unused_imports)]
 use tracing::{debug, error, info, warn};
 
+pub trait TimeRemaining {
+    fn time_remaining(&self) -> Result<Duration, Duration>;
+}
+
+impl TimeRemaining for SystemTime {
+    fn time_remaining(&self) -> Result<Duration, Duration> {
+        // Note: elapsed() is used in reverse, so Ok() and Err() are also in reverse
+        match self.elapsed() {
+            Err(e) => Ok(e.duration()),
+            Ok(sec) => Err(sec),
+        }
+    }
+}
+
 /// A support struct holding the request object and related AMQP info
 #[derive(Debug)]
 pub struct JobRequest {
@@ -47,17 +61,13 @@ pub struct JobRequest {
     pub object: object::Descriptor,
 }
 
-impl JobRequest {
-    /// Returns the remaining TTL of the complete work
-    pub fn time_remaining(&self) -> Option<Duration> {
-        // Note: elapsed() is used in reverse, so Ok() and Err() are also in reverse
-        match self.expiration_ts.elapsed() {
-            // A positive TTL
-            Err(e) => Some(e.duration()),
+impl TimeRemaining for JobRequest {
+    fn time_remaining(&self) -> Result<Duration, Duration> {
+        match self.expiration_ts.time_remaining() {
             // Lingering (allow for small time jumps)
-            Ok(sec) if sec.as_millis() < 2000 => Some(Duration::from_secs(1)),
-            // Expired
-            _ => None,
+            Err(sec) if sec.as_millis() < 2000 => Ok(Duration::from_secs(2)),
+            // Either not expired or expired beyond lingering
+            v => v,
         }
     }
 }
@@ -203,22 +213,15 @@ impl PendingResult {
             .all(|ref c| matches!(c, PendingChildKind::Complete(_)))
     }
 
-    /// Returns the remaining TTL of the complete work
-    pub fn time_remaining(&self) -> Option<Duration> {
-        // Note: elapsed() is used in reverse, so Ok() and Err() are also in reverse
-        match self.expiration_ts.elapsed() {
-            // A positive TTL
-            Err(e) => Some(e.duration()),
-            // Lingering (allow for small time jumps)
-            Ok(sec) if sec.as_millis() < 2000 => Some(Duration::from_secs(1)),
-            // Expired
-            _ => None,
-        }
-    }
-
     /// Checks if the job is expired
     fn is_expired(&self) -> bool {
-        self.time_remaining().is_none()
+        self.time_remaining().is_err()
+    }
+}
+
+impl TimeRemaining for PendingResult {
+    fn time_remaining(&self) -> Result<Duration, Duration> {
+        self.expiration_ts.time_remaining()
     }
 }
 
@@ -792,8 +795,8 @@ impl ChildQueue {
     ) -> Result<(), Box<dyn std::error::Error>> {
         let correlation_id = format!("{}.{}", key, child.correlation_id);
         let ttl = expiration_ts
-            .duration_since(SystemTime::UNIX_EPOCH)
-            .unwrap_or_else(|_| Duration::default());
+            .time_remaining()
+            .unwrap_or(Duration::default());
         let child_ref: object::DescriptorRef = child.into();
         shared::amqp::publish_job_request(
             &self.channel,

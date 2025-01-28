@@ -16,6 +16,8 @@ pub struct Config {
     pub port: Option<u16>,
     /// The path to the objects store
     pub objects_path: String,
+    /// Whois server query timeout in seconds
+    pub query_timeout_secs: Option<u32>,
 }
 
 impl Config {

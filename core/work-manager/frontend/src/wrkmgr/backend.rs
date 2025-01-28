@@ -110,25 +110,29 @@ pub mod inner {
         pub async fn invoke(
             &self,
             object_descriptor: &object::Descriptor,
-        ) -> Result<BackendResult, Box<dyn std::error::Error>> {
+        ) -> Result<(BackendResult, f64), Box<dyn std::error::Error>> {
             let object = &object_descriptor.info;
             let symbols = &object_descriptor.symbols;
             let relation_metadata = &object_descriptor.relation_metadata;
             let max_recursion = object_descriptor.max_recursion;
             if object.recursion_level >= max_recursion {
                 info!("Max recursion level ({max_recursion}) reached, backend not invoked");
-                return Ok(BackendResult {
-                    result: BackendResultKind::ok(BackendResultOk {
-                        symbols: vec!["TOODEEP".to_string()],
-                        object_metadata: object::Metadata::new(),
-                        children: Vec::new(),
-                    }),
-                });
+                return Ok((
+                    BackendResult {
+                        result: BackendResultKind::ok(BackendResultOk {
+                            symbols: vec!["TOODEEP".to_string()],
+                            object_metadata: object::Metadata::new(),
+                            children: Vec::new(),
+                        }),
+                    },
+                    f64::NAN,
+                ));
             }
             debug!(
                 "Backend invoked at recursion level {}/{}",
                 object.recursion_level, max_recursion
             );
+            let start = std::time::Instant::now();
             let reply = async {
                 let mut stream = tokio::net::TcpStream::connect(&self.addr).await?;
                 let req = BackendRequest {
@@ -169,16 +173,18 @@ pub mod inner {
             })?;
             debug!("Backend result received: {:#?}", res);
             match &res.result {
-                BackendResultKind::ok(r) => info!(
-                    "Backend produced {} symbols and {} children",
-                    r.symbols.len(),
-                    r.children.len(),
-                ),
-                BackendResultKind::error(e) => {
+                BackendResultKind::ok(r) => {
+                    info!(
+                        "Backend produced {} symbols and {} children",
+                        r.symbols.len(),
+                        r.children.len(),
+                    );
+                }
+                BackendResultKind::error(ref e) => {
                     info!("Backend failed: {e}")
                 }
             }
-            Ok(res)
+            Ok((res, start.elapsed().as_secs_f64()))
         }
 
         /// Waits indefinitely for the backend to exit
@@ -224,14 +230,17 @@ pub mod inner {
         pub async fn invoke(
             &self,
             _object_descriptor: &object::Descriptor,
-        ) -> Result<BackendResult, Box<dyn std::error::Error>> {
-            Ok(BackendResult {
-                result: BackendResultKind::ok(BackendResultOk {
-                    symbols: Vec::new(),
-                    object_metadata: object::Metadata::new(),
-                    children: Vec::new(),
-                }),
-            })
+        ) -> Result<(BackendResult, f64), Box<dyn std::error::Error>> {
+            Ok((
+                BackendResult {
+                    result: BackendResultKind::ok(BackendResultOk {
+                        symbols: Vec::new(),
+                        object_metadata: object::Metadata::new(),
+                        children: Vec::new(),
+                    }),
+                },
+                f64::NAN,
+            ))
         }
 
         /// Waits indefinitely for the backend to exit

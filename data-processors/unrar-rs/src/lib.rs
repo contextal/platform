@@ -302,7 +302,7 @@ impl ArchiveHandler {
         // functions to work.
         // These functions are used by `libunrar` under the hood.
         LOCALE.call_once(|| {
-            if unsafe { setlocale(LC_ALL, b"en_US.UTF-8\0".as_ptr() as *const c_char) }.is_null() {
+            if unsafe { setlocale(LC_ALL, c"en_US.UTF-8".as_ptr() as *const c_char) }.is_null() {
                 panic!("failed to set a locale");
             }
         });

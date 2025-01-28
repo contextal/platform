@@ -118,7 +118,7 @@ pub fn process_request(
     }
     for member in object_metadata.members.iter() {
         if let Some(name) = member.name {
-            if names.iter().find(|n| n == &name).is_none() {
+            if !names.iter().any(|n| n == name) {
                 names.push(name.to_string());
             }
         }
@@ -147,13 +147,12 @@ pub fn process_request(
         },
     );
     let mut child_symbols: Vec<String> = Vec::new();
-    let path: Option<String>;
-    if overlimits {
+    let path: Option<String> = if overlimits {
         symbols.push("LIMITS_REACHED".to_string());
         child_symbols.push("TOOBIG".to_string());
-        path = None;
+        None
     } else {
-        path = Some(
+        Some(
             output_file
                 .into_temp_path()
                 .keep()
@@ -161,8 +160,8 @@ pub fn process_request(
                 .into_os_string()
                 .into_string()
                 .unwrap(),
-        );
-    }
+        )
+    };
     let child = BackendResultChild {
         path,
         force_type: None,

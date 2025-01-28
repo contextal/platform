@@ -1,4 +1,5 @@
 mod config;
+mod whos_timeout;
 
 use backend_utils::objects::*;
 use chrono::Utc;
@@ -41,7 +42,10 @@ fn process_domain(
     let mut age_days = None;
     let mut name_servers = None;
 
-    if let Ok(domain_data) = whos::domain(domain) {
+    if let Ok(domain_data) = whos_timeout::domain(
+        domain,
+        &std::time::Duration::from_secs(u64::from(config.query_timeout_secs.unwrap_or(15))),
+    ) {
         if let Some(data) = domain_data {
             creation_date = data.created.map(|dt| dt.to_string());
             expiration_date = data.expiry.map(|dt| dt.to_string());

@@ -2591,12 +2591,7 @@ impl FromRecordStream for Obj {
 
         //debug!("{:#?}", cmo);
 
-        loop {
-            let ft = if let Ok(ft) = stream.rdu16() {
-                ft
-            } else {
-                break;
-            };
+        while let Ok(ft) = stream.rdu16() {
             match ft {
                 0x0000 => {
                     stream.sink(2)?;

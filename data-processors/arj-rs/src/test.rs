@@ -1,8 +1,8 @@
+use crate::config::Config;
 use crate::process_request;
 use backend_utils::objects::{BackendRequest, BackendResultKind, Info, Metadata};
 use std::collections::HashMap;
 use tempfile::TempDir;
-use crate::config::Config;
 
 fn mock_env_for_file(file: &str) -> (Config, BackendRequest, TempDir) {
     let temp_dir = TempDir::new().unwrap();

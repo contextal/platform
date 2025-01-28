@@ -4,6 +4,7 @@ mod backend;
 mod metrics;
 
 use crate::config::Config;
+use amqp::TimeRemaining;
 use backend::BackendResultKind;
 use futures::prelude::*;
 use shared::{clamd, object};
@@ -30,6 +31,8 @@ enum ProcessResult<T> {
     Exit,
 }
 use ProcessResult::*;
+
+const PERF_META_KEY: &str = "_perf";
 
 fn sanitize_backend_symbols(symbols: &mut [String]) {
     for sym in symbols.iter_mut() {
@@ -156,7 +159,7 @@ impl WorkManager {
             // Publish an error result right away if the job has timed out
             // This is a shoot in the dark: the job may have expired a while
             // ago and the requester may have given up already
-            if ttl.is_none() {
+            if ttl.is_err() {
                 warn!(
                     "Expired job request received for object \"{}\" at recursion level {}/{}",
                     job_request.object.info.object_id,
@@ -371,15 +374,16 @@ impl WorkManager {
             self.check_backend = backend_res.is_err();
             return Requeue;
         }
-        let mut backend_res = backend_res.unwrap();
+        let (mut backend_res, backend_time) = backend_res.unwrap();
 
         // If backend succeeded merge together:
         // - existing symbols (set by the parent)
         // - backend generated symbols
         // - clam symbols (with prefix) if backend succeeded
         if let BackendResultKind::ok(res) = &mut backend_res.result {
+            let mut perf_meta = object::Metadata::new();
+            perf_meta.insert("time_backend".into(), serde_json::Value::from(backend_time));
             sanitize_backend_symbols(&mut res.symbols);
-            object::sanitize_meta_keys(&mut res.object_metadata);
             debug!("Merged {} exising symbols", obj.symbols.len());
             for sym in obj.symbols.iter() {
                 res.symbols.push(sym.to_string())
@@ -389,7 +393,7 @@ impl WorkManager {
                     warn!("Clamd failed: {e}");
                     res.symbols.push("AV_SCAN_INCOMPLETE".to_string());
                 }
-                Ok(clamd_symbols) => {
+                Ok((clamd_symbols, scan_time)) => {
                     if !clamd_symbols.is_empty() {
                         debug!("Merged {} symbols from clamd", clamd_symbols.len());
                         let mut infected = false;
@@ -405,8 +409,12 @@ impl WorkManager {
                             res.symbols.push("INFECTED".to_string());
                         }
                     }
+                    perf_meta.insert("time_clamd".into(), serde_json::Value::from(scan_time));
                 }
             }
+            res.object_metadata
+                .insert(PERF_META_KEY.into(), perf_meta.into());
+            object::sanitize_meta_keys(&mut res.object_metadata);
             res.symbols.sort_unstable();
             res.symbols.dedup();
         }

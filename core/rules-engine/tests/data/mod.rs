@@ -19,7 +19,7 @@ fn create_work_001() -> Work {
         None,
         3_000_000,
         json!({"md5":"00cf96e7b9b95dfdd83f44ba0683523d", "sha1":"e7c8d333ae4970119e74ef023e3e55a6f7234ba0", "sha256":"1042cfc188710bad4809ec4f3b79f94865a223482327b4d4b7a784e65d1b7926"}),
-        json!({ "ok": { "symbols" : ["TOP_SECRET"], "object_metadata": {} }}),
+        json!({ "ok": { "symbols" : ["TOP_SECRET"], "object_metadata": {"array":[{"key": "From", "value":"A"},{"key": "To", "value":"B"},{"key": "Subject", "value":"Ctx"}]} }}),
     );
     let object_002 = Object::new(
         "object_001_002",
@@ -99,7 +99,7 @@ fn create_work_002() -> Work {
         Some("PNG"),
         350_000,
         json!({"md5":"09c18792952797fc1028f6f503f0cd04", "sha1":"e14129a18b286c54f9f64abe824a19034e7e3911", "sha256":"86a3db94fd47167ba4915bd423dbe504f9a4b4ccf98f12e15541f681b647a433"}),
-        json!({ "ok": { "symbols" : [], "object_metadata": {} }}),
+        json!({ "ok": { "symbols" : [], "object_metadata": {"array":[{"key": "From", "value":"B"},{"key": "To", "value":"Ctx"},{"key": "Subject", "value":"A"}]} }}),
     );
     let object_005 = Object::new(
         "object_002_005",
@@ -306,7 +306,7 @@ fn create_work_004() -> Work {
         None,
         2000,
         json!({"md5":"f793745d5c301fdf260c41f95bd4d7e9", "sha1":"3f6e07e88fafae7ef70b540184fe0eed537bc213", "sha256":"a599a29fb409a3378e83eca884c0be9a98a03299ddbb368058e1c9b693de5472"}),
-        json!({ "ok": { "symbols" : [], "object_metadata": {} }}),
+        json!({ "ok": { "symbols" : [], "object_metadata": {"array":[{"key": "From", "value":1},{"key": "To", "value":2},{"key": "Subject", "value":"Ctx"}]} }}),
     );
     let object_005 = Object::new(
         "object_004_005",

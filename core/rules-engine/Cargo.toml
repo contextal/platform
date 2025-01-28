@@ -11,7 +11,7 @@ exclude = [ "fuzz" ]
 
 [workspace.package]
 edition = "2021"
-version = "1.1.0"
+version = "1.2.0"
 homepage = "https://contextal.com/"
 license = "GPL-3.0-only"
 

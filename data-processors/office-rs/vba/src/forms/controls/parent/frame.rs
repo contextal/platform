@@ -38,7 +38,7 @@ impl<'a, R: 'a + Read + Seek> Frame<'a, R> {
 }
 
 impl<'a, R: Read + Seek> ParentControl<'a, R> for Frame<'a, R> {
-    fn pctrl_info(&'a self) -> &ParentControlInfo<'a, R> {
+    fn pctrl_info(&'a self) -> &'a ParentControlInfo<'a, R> {
         &self.pi
     }
 }

@@ -212,8 +212,8 @@ pub mod test {
         test.test_query(
             "@has_parent(object_type=\"Rar\") && @get_hash(\"md5\") !=  \"c37d895fc01b3405f44f1973a56ae68b\"",
             &mut [
-                er("work_004", "object_004_003"), 
-                er("work_004", "object_004_004"), 
+                er("work_004", "object_004_003"),
+                er("work_004", "object_004_004"),
                 er("work_004", "object_004_005")
             ]
         )
@@ -718,6 +718,66 @@ pub mod test {
             &mut [
                 er("work_001", "object_001_003"),
                 er("work_001", "object_001_005"),
+            ],
+        )
+        .unwrap();
+        test.test_query(
+            "@has_object_meta($array)",
+            &mut [
+                er("work_001", "object_001_001"),
+                er("work_001", "object_001_004"),
+                er("work_002", "object_002_004"),
+                er("work_003", "object_003_008"),
+                er("work_003", "object_003_010"),
+                er("work_004", "object_004_004"),
+            ],
+        )
+        .unwrap();
+        test.test_query(
+            "@has_object_meta($array.key)",
+            &mut [
+                er("work_001", "object_001_001"),
+                er("work_002", "object_002_004"),
+                er("work_004", "object_004_004"),
+            ],
+        )
+        .unwrap();
+        test.test_query(
+            "@has_object_meta($array.value)",
+            &mut [
+                er("work_001", "object_001_001"),
+                er("work_002", "object_002_004"),
+                er("work_004", "object_004_004"),
+            ],
+        )
+        .unwrap();
+        test.test_query(
+            r#"@match_object_meta($array?($key=="From" && $value=="A"))"#,
+            &mut [er("work_001", "object_001_001")],
+        )
+        .unwrap();
+        test.test_query(
+            r#"@match_object_meta($array?($value regex("C")))"#,
+            &mut [
+                er("work_001", "object_001_001"),
+                er("work_002", "object_002_004"),
+                er("work_004", "object_004_004"),
+            ],
+        )
+        .unwrap();
+        test.test_query(
+            r#"@match_object_meta($array?($key=="Subject" && $value regex("C")))"#,
+            &mut [
+                er("work_001", "object_001_001"),
+                er("work_004", "object_004_004"),
+            ],
+        )
+        .unwrap();
+        test.test_query(
+            r#"@match_object_meta($array?($key=="From" && $value != 1))"#,
+            &mut [
+                er("work_001", "object_001_001"),
+                er("work_002", "object_002_004"),
             ],
         )
         .unwrap();
