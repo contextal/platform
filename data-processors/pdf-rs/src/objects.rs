@@ -1,4 +1,4 @@
-use crate::{config::Config, ChildType, PageWithIndex, PdfBackendError};
+use crate::{ChildType, PageWithIndex, PdfBackendError, config::Config};
 use backend_utils::objects::BackendResultChild;
 use pdfium_render::prelude::*;
 use serde::Serialize;
@@ -70,6 +70,7 @@ impl<'a> Objects<'a> {
         &mut self,
         page: &PageWithIndex,
         document: &PdfDocument,
+        save_images: bool,
     ) -> Vec<Result<Option<BackendResultChild>, PdfBackendError>> {
         let res: Vec<_> = page
             .objects()
@@ -94,6 +95,7 @@ impl<'a> Objects<'a> {
                     page.index,
                     document,
                     self.config.max_object_depth,
+                    save_images,
                 )
             })
             .collect();
@@ -126,6 +128,7 @@ impl<'a> Objects<'a> {
         page_index: u32,
         document: &PdfDocument,
         max_depth: u8,
+        save_images: bool,
     ) -> Vec<Result<Option<BackendResultChild>, PdfBackendError>> {
         if self.number_of_objects.total == self.config.max_objects as usize {
             return vec![Ok(None)];
@@ -136,14 +139,15 @@ impl<'a> Objects<'a> {
             PdfPageObject::Text(_) => self.number_of_objects.texts += 1,
             PdfPageObject::Image(image_object) => {
                 self.number_of_objects.images += 1;
-                if self.config.save_image_objects {
-                    return vec![self
-                        .save_image_object(document, image_object, page_index, object_index)
-                        .map_err(|e| {
-                            self.number_of_objects.errors += 1;
-                            warn!("failed to save an image object: {e}");
-                            e
-                        })];
+                if save_images {
+                    return vec![
+                        self.save_image_object(document, image_object, page_index, object_index)
+                            .map_err(|e| {
+                                self.number_of_objects.errors += 1;
+                                warn!("failed to save an image object: {e}");
+                                e
+                            }),
+                    ];
                 }
             }
             PdfPageObject::XObjectForm(xobjectform) => {
@@ -158,6 +162,7 @@ impl<'a> Objects<'a> {
                                 page_index,
                                 document,
                                 max_depth - 1,
+                                save_images,
                             )
                         })
                         .collect();
@@ -254,5 +259,36 @@ impl<'a> Objects<'a> {
             },
             force_type: None,
         }))
+    }
+
+    /// Processes objects from PDF page, including nested ones in case of objects of a "container"
+    /// type.
+    pub fn count_images(&self, page: &PageWithIndex) -> usize {
+        let mut res = 0;
+        let iter = page.objects().iter().take(
+            self.config
+                .max_objects
+                .saturating_sub(self.number_of_objects.total as u32) as usize,
+        );
+        for object in iter {
+            count_images_inner(object, self.config.max_object_depth, &mut res);
+        }
+        res
+    }
+}
+
+fn count_images_inner(object: PdfPageObject<'_>, max_depth: u8, res: &mut usize) {
+    match &object {
+        PdfPageObject::Image(_) => {
+            *res += 1;
+        }
+        PdfPageObject::XObjectForm(xobjectform) => {
+            if max_depth > 0 {
+                for object in xobjectform.iter() {
+                    count_images_inner(object, max_depth - 1, res);
+                }
+            }
+        }
+        _ => {}
     }
 }

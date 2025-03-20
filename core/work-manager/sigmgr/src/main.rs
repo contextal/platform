@@ -81,7 +81,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let freshclam_watch = freshclam.watch();
     tokio::pin!(clamd_watch);
     tokio::pin!(freshclam_watch);
-    let mut rng = rand::thread_rng();
+    let mut rng = rand::rng();
     let mut interval = make_interval(&mut rng).await;
     let mut newrules_arrived = false;
 
@@ -115,8 +115,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 async fn make_interval(rng: &mut rand::rngs::ThreadRng) -> tokio::time::Interval {
     use rand::Rng;
-    let mut interval =
-        tokio::time::interval(tokio::time::Duration::from_millis(rng.gen_range(0..60_000)));
+    let mut interval = tokio::time::interval(tokio::time::Duration::from_millis(
+        rng.random_range(0..60_000),
+    ));
     interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
     debug!("Reload check set to {}", interval.period().as_millis());
     interval

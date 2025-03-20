@@ -1,15 +1,15 @@
 //! *Workbook* associated structures
 use crate::{
+    ExcelError, RecordStream, SubstreamType,
     macrosheet::MacroSheet,
     records::{
+        Bof, BoundSheet8, CodePage, Password, Protect, RecordType, SST, WsBool,
         from_record::{Anomalies, FromRecordStream},
-        Bof, BoundSheet8, CodePage, Password, Protect, RecordType, WsBool, SST,
     },
     structures::BofType,
     worksheet::Worksheet,
-    ExcelError, RecordStream, SubstreamType,
 };
-use ctxole::{crypto, Ole, OleEntry};
+use ctxole::{Ole, OleEntry, crypto};
 use std::{
     fmt,
     io::{Read, Seek},

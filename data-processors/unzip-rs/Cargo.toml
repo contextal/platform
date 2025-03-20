@@ -1,15 +1,15 @@
 [package]
 name = "unzip-rs"
-version = "1.2.0"
-edition = "2021"
+version = "1.3.0"
+edition = "2024"
 homepage = "https://contextal.com/"
 license = "GPL-3.0-only"
 description = "Zip archive backend"
 
 [dependencies]
-ctxutils = {path = "../../libs/ctxutils" }
-ctxunzip = {path = "../../libs/ctxunzip" }
-backend-utils = {path = "../../libs/backend-utils" }
+ctxutils = { path = "../../libs/ctxutils" }
+ctxunzip = { path = "../../libs/ctxunzip" }
+backend-utils = { path = "../../libs/backend-utils" }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
 serde = { version = "1.0.188", features = ["derive"] }

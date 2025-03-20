@@ -1,5 +1,5 @@
 use bitflags::bitflags;
-use byteorder::{ReadBytesExt, LE};
+use byteorder::{LE, ReadBytesExt};
 use serde::{Serialize, Serializer};
 use std::{
     fmt::Display,

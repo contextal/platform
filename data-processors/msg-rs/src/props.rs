@@ -6,7 +6,7 @@ pub mod tags;
 
 use ctxole::Ole;
 use ctxutils::io::*;
-pub use ctxutils::win32::{filetime_to_datetime, GUID};
+pub use ctxutils::win32::{GUID, filetime_to_datetime};
 use std::borrow::Cow;
 use std::fmt;
 use std::io::{self, Read, Seek};

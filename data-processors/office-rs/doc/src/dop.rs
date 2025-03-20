@@ -15,8 +15,8 @@
 use ctxutils::io::*;
 #[cfg(feature = "serde")]
 use serde::{
-    ser::{SerializeStruct, Serializer},
     Serialize,
+    ser::{SerializeStruct, Serializer},
 };
 use std::io::{self, Read, Seek};
 

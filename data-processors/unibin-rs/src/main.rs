@@ -130,7 +130,7 @@ fn process_request(
         _ => {
             return Ok(BackendResultKind::error(
                 "Not a Universal Binary".to_string(),
-            ))
+            ));
         }
     }
 

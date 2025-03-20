@@ -16,11 +16,11 @@ pub struct BackendDateTime {
 impl From<&str> for BackendDateTime {
     fn from(raw: &str) -> Self {
         use nom::{
+            AsChar, Parser,
             bytes::complete::{tag, take_while_m_n},
             character::complete::one_of,
             combinator::{all_consuming, map_res, opt, verify},
-            sequence::{delimited, tuple},
-            AsChar, Parser,
+            sequence::delimited,
         };
 
         let parsed = (|| -> Result<OffsetDateTime, PdfBackendError> {
@@ -77,29 +77,26 @@ impl From<&str> for BackendDateTime {
                 |minute| (0..=59).contains(minute),
             );
 
-            let (_remainder, (_prefix, year, rest)) = all_consuming(tuple((
+            let (_remainder, (_prefix, year, rest)) = all_consuming((
                 opt(prefix),
                 year,
-                opt(tuple((
+                opt((
                     month,
-                    opt(tuple((
+                    opt((
                         day,
-                        opt(tuple((
+                        opt((
                             hour,
-                            opt(tuple((
+                            opt((
                                 minute,
-                                opt(tuple((
+                                opt((
                                     second,
-                                    opt(tuple((
-                                        offset_direction,
-                                        opt(tuple((offset_hour, opt(offset_minute)))),
-                                    ))),
-                                ))),
-                            ))),
-                        ))),
-                    ))),
-                ))),
-            )))
+                                    opt((offset_direction, opt((offset_hour, opt(offset_minute))))),
+                                )),
+                            )),
+                        )),
+                    )),
+                )),
+            ))
             .parse(raw)
             .map_err(|e| -> PdfBackendError { PdfBackendError::Parse(e.to_owned()) })?;
 

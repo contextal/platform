@@ -4,6 +4,7 @@ use backend_utils::objects::{
 };
 use ocr_rs::{Dpi, TessBaseApi, TessPageSegMode};
 use pdf_rs::{
+    PageWithIndex, PdfBackendError, PdfDocumentVersionWrapper, PdfFormTypeWrapper,
     annotations::{Annotations, NumberOfAnnotations},
     attachments::{Attachments, NumberOfAttachments},
     bookmarks::{Bookmarks, NumberOfBookmarks},
@@ -18,7 +19,6 @@ use pdf_rs::{
     rendered_page::RenderedPage,
     signatures::{Signature, Signatures},
     thumbnails::Thumbnails,
-    PageWithIndex, PdfBackendError, PdfDocumentVersionWrapper, PdfFormTypeWrapper,
 };
 use pdfium_render::prelude::*;
 
@@ -26,7 +26,7 @@ use serde::Serialize;
 use std::{
     cell::RefCell,
     collections::{HashSet, VecDeque},
-    fs::{self, read, File},
+    fs::{self, File, read},
     io::{self, Write},
     iter::once,
     os::unix::fs::MetadataExt,
@@ -542,7 +542,7 @@ fn process_request(
                         force_type: Some("Domain".to_string()),
                         symbols: vec![],
                         relation_metadata: match serde_json::to_value(DomainMetadata {
-                            domain: domain.clone(),
+                            name: domain.clone(),
                         })? {
                             serde_json::Value::Object(v) => v,
                             _ => unreachable!(),
@@ -742,6 +742,13 @@ fn process_page(
             e
         });
 
+    let (save_images, save_pages) =
+        if config.save_image_objects && document_context.objects.count_images(&page) >= 10 {
+            (false, true)
+        } else {
+            (config.save_image_objects, config.render_pages)
+        };
+
     // Any object processing errors are counted and logged when appearing. But at
     // the end these errors don't affect backend response type. As it is expected
     // to be quite common to see PDFs which are usable/renderable in most of the
@@ -749,7 +756,7 @@ fn process_page(
     // Pdfium, or violating the standard.
     for child in document_context
         .objects
-        .append_from(&page, document)
+        .append_from(&page, document, save_images)
         .into_iter()
         .flatten()
         .flatten()
@@ -757,7 +764,7 @@ fn process_page(
         children.push(child)?;
     }
 
-    if config.render_pages
+    if save_pages
         || config.ocr_mode == OcrMode::Always
         || (config.ocr_mode == OcrMode::IfNoDocumentTextAvailable
             && document_context.document_text.is_empty())
@@ -771,7 +778,7 @@ fn process_page(
                 }
             };
 
-        if config.render_pages {
+        if save_pages {
             let child = match rendered_page.save() {
                 Ok(child) => child,
                 Err(e) => {
@@ -887,5 +894,5 @@ fn process_javascript(
 
 #[derive(Serialize)]
 struct DomainMetadata {
-    domain: String,
+    name: String,
 }

@@ -77,13 +77,13 @@ impl GraphDB {
                     continue;
                 }
             };
-            if let Some(max_ver) = scenario.max_ver {
-                if shared::SCN_VERSION > max_ver {
-                    warn!(
-                        "Scenario {} (id {}) skipped due to unsatisfied maximum version requirements ({} > {})",
-                        scenario.name, id, shared::SCN_VERSION, max_ver
-                    );
-                }
+            if !scenario.is_compatible() {
+                warn!(
+                    "Scenario {} (id {}) skipped due to unsatisfied version requirements ({})",
+                    scenario.name,
+                    id,
+                    scenario.compatibility()
+                );
                 continue;
             }
             debug!("Processing scenario {} (id {})", scenario.name, id);

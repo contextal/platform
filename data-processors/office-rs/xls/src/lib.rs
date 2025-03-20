@@ -21,7 +21,7 @@ pub mod worksheet;
 pub use error::ExcelError;
 
 use crate::structures::BofType;
-use ctxole::{crypto, Encryption, NoValidPasswordError, Ole, OleEntry};
+use ctxole::{Encryption, NoValidPasswordError, Ole, OleEntry, crypto};
 use ctxutils::io::*;
 use records::{
     from_record::{Anomalies, FromRecordStream, Record},
@@ -790,7 +790,7 @@ impl<'a, R: Read + Seek> Substream<'a, R> {
         substream_type: SubstreamType,
     ) -> Result<Self, ExcelError> {
         let ole_stream = ole.get_stream_reader(entry);
-        let stream = if let Some(ref key) = encryption_key {
+        let stream = if let Some(key) = &encryption_key {
             crypto::LegacyDecryptor::new(ole_stream, key, 0)
         } else {
             crypto::LegacyDecryptor::new_no_op(ole_stream)

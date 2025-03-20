@@ -33,7 +33,7 @@ pub(crate) struct Xml<R: Read + BufRead> {
 impl<R: Read + BufRead> Xml<R> {
     pub(crate) fn new(reader: R) -> Self {
         let mut reader = Reader::from_reader(reader);
-        reader.trim_text(true);
+        reader.config_mut().trim_text(true);
         Self {
             reader,
             bufer: Vec::new(),

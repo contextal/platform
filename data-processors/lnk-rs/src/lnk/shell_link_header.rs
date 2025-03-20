@@ -1,7 +1,7 @@
 use bitflags::bitflags;
-use byteorder::{ReadBytesExt, LE};
-use ctxutils::win32::GUID;
+use byteorder::{LE, ReadBytesExt};
 use ctxole::oleps::{Filetime, FromOlepsReader};
+use ctxutils::win32::GUID;
 use serde::{Serialize, Serializer};
 use std::fmt::Display;
 use std::io;

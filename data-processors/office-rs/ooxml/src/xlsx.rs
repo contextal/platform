@@ -1,8 +1,9 @@
 use crate::{
+    OoxmlError, ParserState, ProcessingSummary,
     archive::{self, Archive, Entry},
     drawing::Drawing,
     relationship::{FileToProcess, Relationship, RelationshipType, TargetMode},
-    xml, OoxmlError, ParserState, ProcessingSummary,
+    xml,
 };
 use convert_case::{Case, Casing};
 use ctxutils::cmp::Unsigned;
@@ -329,7 +330,7 @@ impl<R: Read + Seek> SharedStrings<R> {
         let cache_entries = file_size < cache_limit;
         let mut entries = Vec::<SharedStringEntry>::new();
         loop {
-            let offset = parser.position()?;
+            let offset = parser.position();
             let xml_event = parser.next()?;
             match &xml_event {
                 XmlEvent::EndElement { name } if name.local_name.as_str() == "sst" => break,
@@ -344,7 +345,7 @@ impl<R: Read + Seek> SharedStrings<R> {
                         entries.push(SharedStringEntry::Cached(str));
                     } else {
                         parser.skip()?;
-                        let end_offset = parser.position()?;
+                        let end_offset = parser.position();
                         let size = end_offset.saturating_sub(offset).try_into()?;
                         entries.push(SharedStringEntry::NotCached { offset, size });
                     }
@@ -380,7 +381,7 @@ impl<R: Read + Seek> SharedStrings<R> {
                 match reader.next()? {
                     XmlEvent::StartDocument { .. } => {}
                     XmlEvent::StartElement { name, .. } if name.local_name.as_str() == "si" => {
-                        break
+                        break;
                     }
                     event => return Err(format!("Unexpected xml event: {event:?}").into()),
                 }
@@ -625,7 +626,7 @@ impl<R: Read + Seek> Sheet<R> {
         let mut rows = Vec::<RowInfo>::new();
 
         loop {
-            let offset = self.parser.position()?;
+            let offset = self.parser.position();
             match self.next()? {
                 XmlEvent::StartElement {
                     name, attributes, ..
@@ -699,7 +700,7 @@ impl<R: Read + Seek> Sheet<R> {
                     debug!("{:spaces$}</{name}>", "", spaces = stack.len() * 2);
                 }
                 XmlEvent::EndDocument => {
-                    let end_offset = self.parser.position()?;
+                    let end_offset = self.parser.position();
                     let size = end_offset - offset;
                     self.chunk_end = Some(OffsetReaderChunk { offset, size });
                     break;
@@ -831,7 +832,7 @@ impl<R: Read + Seek> Sheet<R> {
             }
         }
 
-        let end_offset = self.parser.position()?;
+        let end_offset = self.parser.position();
         let size = (end_offset.saturating_sub(offset)).try_into()?;
 
         Ok(RowInfo {
@@ -884,7 +885,7 @@ impl<R: Read + Seek> Sheet<R> {
                             if name.local_name == self.sheet_info.sheet_type.name() =>
                         {
                             let offset: u64 = 0;
-                            let size = parser.position()?;
+                            let size = parser.position();
                             self.chunk_start = Some(OffsetReaderChunk { offset, size })
                         }
                         _ => {

@@ -25,7 +25,7 @@ use std::{
     path::Path,
     rc::Rc,
 };
-use time::{format_description::well_known::Rfc3339, OffsetDateTime};
+use time::{OffsetDateTime, format_description::well_known::Rfc3339};
 use tracing::{debug, warn};
 use vba::{Vba, VbaDocument};
 pub use xlsb::{BinarySheet, BinaryWorkbook};
@@ -88,23 +88,27 @@ impl<R: Read + Seek> Ooxml<R> {
             {
                 debug!("content_type={content_type}");
                 match content_type.as_str() {
-                    "application/vnd.ms-word.document.macroEnabled.main+xml" |
-                    "application/vnd.ms-word.template.macroEnabledTemplate.main+xml" |
-                    "application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml" => {
+                    "application/vnd.ms-word.document.macroEnabled.main+xml"
+                    | "application/vnd.ms-word.template.macroEnabledTemplate.main+xml"
+                    | "application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml" =>
+                    {
                         let path = Self::normalize_path(Self::CONTENT_TYPES_PATH, &part_name)?;
                         let wordprocessing = Wordprocessing::open(&archive, &path)?;
                         document = Some(Document::Docx(Box::new(wordprocessing)));
                         break;
                     }
-                    "application/vnd.ms-excel.sheet.macroEnabled.main+xml" |
-                    "application/vnd.ms-excel.template.macroEnabled.main+xml" |
-                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml" => {
+                    "application/vnd.ms-excel.sheet.macroEnabled.main+xml"
+                    | "application/vnd.ms-excel.template.macroEnabled.main+xml"
+                    | "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml" =>
+                    {
                         let path = Self::normalize_path(Self::CONTENT_TYPES_PATH, &part_name)?;
-                        let spreadsheet = Workbook::open(&archive, &path, shared_strings_cache_limit)?;
+                        let spreadsheet =
+                            Workbook::open(&archive, &path, shared_strings_cache_limit)?;
                         document = Some(Document::Xlsx(spreadsheet));
                         break;
                     }
-                    "application/vnd.openxmlformats-officedocument.presentationml.presentation.main+xml" => {
+                    "application/vnd.openxmlformats-officedocument.presentationml.presentation.main+xml" =>
+                    {
                         // todo!("Presentation support is not implemented yet")
                     }
                     _ => {}
@@ -772,7 +776,7 @@ fn load_first_start_element<R: Read + Seek>(
     loop {
         match parser.next()? {
             XmlEvent::StartDocument { .. } | XmlEvent::Characters(_) | XmlEvent::Whitespace(_) => {
-                continue
+                continue;
             }
             XmlEvent::EndDocument => return Err("Unexpected end of document".into()),
             XmlEvent::EndElement { .. } => return Err("Format error".into()),

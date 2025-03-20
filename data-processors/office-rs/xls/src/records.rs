@@ -3,7 +3,7 @@
 //! Please refer to \[MS-XLS\] for documentation
 
 pub mod from_record;
-use super::{structures::*, DataLocation, ExcelError, RecordStream};
+use super::{DataLocation, ExcelError, RecordStream, structures::*};
 use ctxutils::io::*;
 use from_record::*;
 use from_record_derive::FromRecordStream;

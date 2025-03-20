@@ -9,18 +9,20 @@ use std::io::Read;
 unsafe fn make_stream(wbits: i32) -> Result<Box<libz_sys::z_stream>, std::io::Error> {
     let arr: [u8; std::mem::size_of::<libz_sys::z_stream>()] =
         [0; std::mem::size_of::<libz_sys::z_stream>()];
-    let mut z = Box::new(std::mem::transmute::<[u8; 112], libz_sys::z_stream>(arr));
+    let mut z = Box::new(unsafe { std::mem::transmute::<[u8; 112], libz_sys::z_stream>(arr) });
     // Note: z_stream contains two nullable function pointers (zalloc and zfree) which
     // rustc will not tolerate
     // Array transmutation is used here in place of MayeUninit::zeroed() so the compiler
     // won't notice
 
-    let zres = libz_sys::inflateInit2_(
-        z.as_mut(),
-        wbits + 16,
-        "1.2.13".as_ptr() as _,
-        std::mem::size_of::<libz_sys::z_stream>() as i32,
-    );
+    let zres = unsafe {
+        libz_sys::inflateInit2_(
+            z.as_mut(),
+            wbits + 16,
+            "1.2.13".as_ptr() as _,
+            std::mem::size_of::<libz_sys::z_stream>() as i32,
+        )
+    };
     match zres {
         libz_sys::Z_OK => {}
         libz_sys::Z_MEM_ERROR => {
@@ -52,7 +54,7 @@ unsafe fn make_stream(wbits: i32) -> Result<Box<libz_sys::z_stream>, std::io::Er
 }
 
 unsafe fn make_header() -> Box<libz_sys::gz_header> {
-    let header: libz_sys::gz_header = std::mem::MaybeUninit::zeroed().assume_init();
+    let header: libz_sys::gz_header = unsafe { std::mem::MaybeUninit::zeroed().assume_init() };
     Box::new(header)
 }
 
@@ -219,7 +221,7 @@ impl<R: Read> Gunzip<R> {
                     return Err(std::io::Error::new(
                         std::io::ErrorKind::InvalidData,
                         "Dictionary required",
-                    ))
+                    ));
                 }
                 libz_sys::Z_DATA_ERROR => {
                     if self.phase <= Phase::Header && self.n_members > 0 {
@@ -237,25 +239,25 @@ impl<R: Read> Gunzip<R> {
                     return Err(std::io::Error::new(
                         std::io::ErrorKind::InvalidInput,
                         "Internal error: stream error",
-                    ))
+                    ));
                 }
                 libz_sys::Z_MEM_ERROR => {
                     return Err(std::io::Error::new(
                         std::io::ErrorKind::OutOfMemory,
                         "Not enough memory to inflate stream",
-                    ))
+                    ));
                 }
                 libz_sys::Z_BUF_ERROR => {
                     return Err(std::io::Error::new(
                         std::io::ErrorKind::InvalidInput,
                         "Internal error: buffer error",
-                    ))
+                    ));
                 }
                 e => {
                     return Err(std::io::Error::new(
                         std::io::ErrorKind::InvalidInput,
                         format!("Internal error: unexpected inflate result ({})", e),
-                    ))
+                    ));
                 }
             }
             if self.phase <= Phase::Header {
@@ -366,7 +368,7 @@ unsafe fn ptr_to_latin1z(ptr: *const u8, max: u32) -> Option<String> {
     let mut s = String::new();
     let max = max as usize;
     for len in 0..max {
-        let c = *ptr.add(len);
+        let c = unsafe { *ptr.add(len) };
         if c == 0 {
             break;
         }

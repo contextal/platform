@@ -6,7 +6,7 @@ pub fn unescape_string(
     pair: pest::iterators::Pair<Rule>,
 ) -> Result<String, Box<pest::error::Error<Rule>>> {
     let inner = match pair.as_rule() {
-        Rule::string => {
+        Rule::string | Rule::string_symbol => {
             let inner = pair
                 .into_inner()
                 .next()

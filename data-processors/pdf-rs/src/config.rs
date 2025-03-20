@@ -1,8 +1,8 @@
 //! Facilities for reading runtime configuration values
 use crate::PdfBackendError;
 use figment::{
-    providers::{Env, Format, Toml},
     Figment,
+    providers::{Env, Format, Toml},
 };
 use image::ImageFormat;
 use serde::{Deserialize, Deserializer};

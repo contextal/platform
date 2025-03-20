@@ -1,13 +1,11 @@
 pub(crate) mod reader {
-    use quick_xml::{name::QName, NsReader};
+    use quick_xml::{NsReader, name::QName};
     use std::{
         borrow::Cow,
         collections::VecDeque,
         io::{BufRead, Read},
     };
     use tracing::debug;
-
-    use crate::OoxmlError;
 
     use super::mkstr;
 
@@ -105,14 +103,12 @@ pub(crate) mod reader {
                 self.reader.read_to_end_into(end, &mut self.buf)?;
                 Ok(())
             } else {
-                Err(quick_xml::Error::UnexpectedEof(
-                    "Invalid skip() usage".to_string(),
-                ))
+                unreachable!("Internal error: illegal skip() call");
             }
         }
         pub fn new(reader: R) -> Self {
             let mut reader = NsReader::from_reader(reader);
-            reader.trim_text(true);
+            reader.config_mut().trim_text(true);
             Self {
                 reader,
                 buf: Vec::new(),
@@ -120,8 +116,8 @@ pub(crate) mod reader {
                 event_stack: Vec::new(),
             }
         }
-        pub fn position(&self) -> Result<u64, OoxmlError> {
-            Ok(u64::try_from(self.reader.buffer_position())?)
+        pub fn position(&self) -> u64 {
+            self.reader.buffer_position()
         }
         // pub fn trim_text(&mut self, val: bool) {
         //     self.reader.trim_text(val);

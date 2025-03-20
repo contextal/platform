@@ -592,14 +592,20 @@ fn process_request(
         .into_iter()
         .collect();
     info!("Parsing {}", input_name.display());
-    process_html(
+    match process_html(
         &input_name,
         Some(&config.output_path),
         config.max_processed_size,
         config.max_child_output_size,
         config.max_children,
         config.create_domain_children,
-    )
+    ) {
+        Ok(h) => Ok(h),
+        Err(e) => Ok(BackendResultKind::error(format!(
+            "Error processing HTML data: {}",
+            e
+        ))),
+    }
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {

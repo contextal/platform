@@ -1,4 +1,4 @@
-use crate::{config::Config, ChildType, PageWithIndex, PdfBackendError};
+use crate::{ChildType, PageWithIndex, PdfBackendError, config::Config};
 use backend_utils::objects::BackendResultChild;
 use std::{collections::HashSet, fs};
 use tempfile::{Builder, NamedTempFile};

@@ -1,8 +1,8 @@
 use crate::{
+    OoxmlError, ProcessingSummary, RelationshipType,
     archive::{self, Archive},
     relationship::{FileToProcess, Relationship, TargetMode},
     xml::{self, reader::OwnedAttribute},
-    OoxmlError, ProcessingSummary, RelationshipType,
 };
 use std::{
     io::{Read, Seek, Write},

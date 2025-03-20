@@ -39,7 +39,7 @@ fn process_request(
             if e.kind() == std::io::ErrorKind::InvalidData
                 || e.kind() == std::io::ErrorKind::UnexpectedEof =>
         {
-            return Ok(BackendResultKind::error(format!("Invalid data ({})", e)))
+            return Ok(BackendResultKind::error(format!("Invalid data ({})", e)));
         }
         Err(e) => return Err(e),
     };
@@ -62,7 +62,7 @@ fn test_ms_example() -> Result<(), std::io::Error> {
     use crate::lnk::link_info::LinkInfoFlags;
     use crate::lnk::shell_link_header::FileAttributesFlags;
     use crate::lnk::shell_link_header::LinkFlags;
-    use crate::lnk::{extra_data, link_info::DriveType, LnkFile, StringDataEnum};
+    use crate::lnk::{LnkFile, StringDataEnum, extra_data, link_info::DriveType};
     use std::fs::File;
     use std::io::Write;
     use tempfile::tempdir;

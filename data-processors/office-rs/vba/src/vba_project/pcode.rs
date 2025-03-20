@@ -2234,7 +2234,7 @@ impl<'a> LineDecompiler<'a> {
                     };
                     let val = self.code.get_u32()?;
                     let mut s = String::new();
-                    let mut it = (0u8..26).filter(|i| val & 1 << i != 0);
+                    let mut it = (0u8..26).filter(|i| val & (1 << i) != 0);
                     let mut cur = it.next();
                     while cur.is_some() {
                         let startv = cur.unwrap();
@@ -2506,11 +2506,7 @@ impl Var {
 
     fn from_redim_data(id: u16, bltin_or_offset: u32, redim_as: bool, as_new: bool) -> Self {
         let flags: u16 = if redim_as {
-            if as_new {
-                0b10000000100000
-            } else {
-                0b100000
-            }
+            if as_new { 0b10000000100000 } else { 0b100000 }
         } else {
             0
         };
@@ -3177,11 +3173,7 @@ impl Procedure {
     }
 
     fn static_str(&self) -> &str {
-        if self.is_static() {
-            "Static "
-        } else {
-            ""
-        }
+        if self.is_static() { "Static " } else { "" }
     }
 
     fn is_ptrsafe(&self) -> bool {

@@ -5,6 +5,6 @@
 mod frame;
 mod userform;
 
-pub use frame::multipage::{MultiPage, Page};
 pub use frame::Frame;
+pub use frame::multipage::{MultiPage, Page};
 pub use userform::{DesignerInfo, UserForm};

@@ -1,6 +1,6 @@
 use pest::Parser;
 use pgrules::parse_and_extract_clam_signatures;
-use pgrules::parse_to_sql;
+use pgrules::Interval;
 use rules::Rule;
 use rules::RuleParser;
 use std::error::Error;
@@ -8,10 +8,25 @@ use std::error::Error;
 #[cfg(test)]
 fn parse_rule(r: rules::Rule, input: &str) -> Result<String, Box<dyn Error>> {
     use pgrules::{to_sql, PairWrapper};
-
     let mut parsed = RuleParser::parse(r, input)?;
     let parsed = parsed.next().ok_or("Pairs<Rule> is empty")?;
-    Ok(to_sql(PairWrapper(parsed), 0, false)?)
+    Ok(to_sql(PairWrapper(parsed), 0, pgrules::QueryType::Search)?.query)
+}
+
+#[cfg(test)]
+fn parse_to_sql<S: AsRef<str> + std::fmt::Display>(
+    expr: S,
+) -> Result<String, Box<pest::error::Error<Rule>>> {
+    let result = pgrules::parse_to_sql(expr, pgrules::QueryType::Search)?;
+    Ok(result.query)
+}
+
+#[cfg(test)]
+fn parse_global_to_sql<S: AsRef<str> + std::fmt::Display>(
+    expr: S,
+) -> Result<String, Box<pest::error::Error<Rule>>> {
+    let result = pgrules::parse_to_sql(expr, pgrules::QueryType::ScenarioGlobal)?;
+    Ok(result.query)
 }
 
 #[test]
@@ -20,6 +35,10 @@ fn test_jsonpath() {
 
     assert_eq!(
         parse_rule(functions, "@match_object_meta(/*comment*/$x == 1)").unwrap(),
+        "(\"objects_0\".result @? '$.ok.object_metadata.x' AND \"objects_0\".result->'ok'->'object_metadata' @? '$.x ? (@!=null && @==1)')"
+    );
+    assert_eq!(
+        parse_rule(functions, "@match_object_meta(/*comment*/$x = 1)").unwrap(),
         "(\"objects_0\".result @? '$.ok.object_metadata.x' AND \"objects_0\".result->'ok'->'object_metadata' @? '$.x ? (@!=null && @==1)')"
     );
     assert_eq!(
@@ -388,4 +407,79 @@ fn test_object_match() {
             .unwrap(),
         "FROM objects AS \"objects_0\" WHERE ((\"objects_0\".result @? '$.ok.object_metadata.array' AND \"objects_0\".result->'ok'->'object_metadata' @? '$.array ? (@!=null && (@.key==\"From\"&&@.value==\"X\"))'))"
     )
+}
+
+#[test]
+fn test_in_statement() {
+    assert_eq!(
+        parse_to_sql("${x}=3; size in(1,2,${x})").unwrap(),
+        r#"FROM objects AS "objects_0" WHERE ("objects_0"."size" in (1, 2, 3))"#
+    );
+    assert_eq!(
+        parse_to_sql(r#"@has_name(in("name"))"#).unwrap(),
+        parse_to_sql(r#"@has_name("name")"#).unwrap(),
+    );
+    assert_eq!(
+        parse_to_sql(r#"@has_name(in("one", "two", regex("three")))"#).unwrap(),
+        r#"FROM objects AS "objects_0" WHERE (exists(SELECT 1 FROM rels WHERE child = "objects_0"."id" AND (props @? '$ ? (@.name=="one" || @.names[*]=="one" || @.name=="two" || @.names[*]=="two" || @.name like_regex "three" || @.names[*] like_regex "three")')))"#
+    );
+    assert_eq!(
+        parse_to_sql(r#"@has_symbol(in("symbol"))"#).unwrap(),
+        parse_to_sql(r#"@has_symbol("symbol")"#).unwrap(),
+    );
+    assert_eq!(
+        parse_to_sql(r#"@has_symbol(in("one", "two", iregex("three")))"#).unwrap(),
+        r#"FROM objects AS "objects_0" WHERE (("objects_0"."result"->'ok'->'symbols'?'one' OR "objects_0"."result"->'ok'->'symbols'?'two' OR "objects_0"."result"->'ok'->'symbols'@?'$?(@ like_regex "three" flag "i")'))"#
+    );
+    assert_eq!(
+        parse_to_sql(r#"@match_object_meta($x in (1))"#).unwrap(),
+        parse_to_sql(r#"@match_object_meta($x==1)"#).unwrap(),
+    );
+    assert_eq!(
+        parse_to_sql(r#"@match_object_meta($x in (true,1,"two", starts_with("x")))"#).unwrap(),
+        r#"FROM objects AS "objects_0" WHERE (("objects_0".result @? '$.ok.object_metadata.x' AND "objects_0".result->'ok'->'object_metadata' @? '$.x ? (@!=null && (@==true || @==1 || @=="two" || @ starts with "x"))'))"#
+    );
+}
+
+#[test]
+fn test_global_query_settings() {
+    assert!(parse_global_to_sql("true").is_err());
+    assert!(parse_global_to_sql("MATCHES:>1;true").is_err());
+    assert!(parse_global_to_sql("TIME_WINDOW:1 week;true").is_err());
+    let result = pgrules::parse_to_sql(
+        "MATCHES:>1;TIME_WINDOW:1 week;true",
+        pgrules::QueryType::ScenarioGlobal,
+    )
+    .unwrap();
+    let settings = result.global_query_settings.unwrap();
+    assert_eq!(settings.matches, pgrules::Matches::MoreThan(1));
+    assert_eq!(
+        settings.time_window,
+        Interval::try_from(std::time::Duration::from_secs(7 * 24 * 60 * 60)).unwrap()
+    );
+    assert_eq!(settings.max_neighbors, None);
+    let result = pgrules::parse_to_sql(
+        "MATCHES:NONE;TIME_WINDOW:1 day 2 hours 3 minutes;true",
+        pgrules::QueryType::ScenarioGlobal,
+    )
+    .unwrap();
+    let settings = result.global_query_settings.unwrap();
+    assert_eq!(settings.matches, pgrules::Matches::None);
+    assert_eq!(
+        settings.time_window,
+        Interval::try_from(std::time::Duration::from_secs(((24 + 2) * 60 + 3) * 60)).unwrap()
+    );
+    assert_eq!(settings.max_neighbors, None);
+    let result = pgrules::parse_to_sql(
+        "MATCHES:<5%;TIME_WINDOW:1 minute;MAX_NEIGHBORS: 25; true",
+        pgrules::QueryType::ScenarioGlobal,
+    )
+    .unwrap();
+    let settings = result.global_query_settings.unwrap();
+    assert_eq!(settings.matches, pgrules::Matches::LessThanPercent(5));
+    assert_eq!(
+        settings.time_window,
+        Interval::try_from(std::time::Duration::from_secs(60)).unwrap()
+    );
+    assert_eq!(settings.max_neighbors, Some(25));
 }

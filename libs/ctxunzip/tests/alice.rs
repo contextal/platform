@@ -7,7 +7,7 @@ use std::{
     fs::{self, File},
     str::FromStr,
 };
-use time::{macros::format_description, PrimitiveDateTime};
+use time::{PrimitiveDateTime, macros::format_description};
 
 const INPUT_LIMIT: u64 = 100 * 1024 * 1024;
 

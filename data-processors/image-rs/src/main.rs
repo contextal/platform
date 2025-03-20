@@ -5,7 +5,7 @@ use backend_utils::objects::{
 };
 use exif::In;
 use flate2::read::GzDecoder;
-use image::{DynamicImage, GenericImage, ImageError, RgbaImage};
+use image::{DynamicImage, EncodableLayout, GenericImage, ImageError, RgbaImage};
 use imageproc::filter::laplacian_filter;
 use ocr_rs::{Dpi, TessBaseApi, TessPageSegMode};
 use resvg::tiny_skia;
@@ -163,6 +163,8 @@ fn process_request(
     if blurred {
         symbols.push("BLURRED".to_string());
     }
+    let mut image_symbols = image_info.symbols;
+    symbols.append(&mut image_symbols);
 
     Ok(BackendResultKind::ok(BackendResultOk {
         symbols,
@@ -189,6 +191,7 @@ struct ImageInfo {
     metadata: ImageInfoMetadata,
     ocr: Option<String>,
     qrcode: Option<QrCode>,
+    symbols: Vec<String>,
 }
 
 #[derive(Serialize)]
@@ -346,34 +349,50 @@ fn normalize_size(size: Size, min: f32, max: f32) -> Result<(Size, f32), String>
     new_size_and_scale(width, height, scale)
 }
 
-fn is_svg(data: &[u8]) -> bool {
+fn check_svg(data: &[u8]) -> Option<Vec<String>> {
     let mut buf = Vec::<u8>::new();
     let mut slice = data;
     if slice.starts_with(&[0x1f, 0x8b]) {
-        buf.resize(4096, 0);
         let mut decoder = GzDecoder::new(slice);
-        if decoder.read(&mut buf).is_ok() {
+        if decoder.read_to_end(&mut buf).is_ok() {
             slice = &buf;
         }
     }
-    if slice.starts_with(b"<svg") {
-        return true;
+
+    let mut reader = quick_xml::reader::Reader::from_reader(slice);
+    let mut is_svg = false;
+    let mut result = Vec::new();
+
+    loop {
+        let event = match reader.read_event() {
+            Ok(event) => event,
+            Err(err) => {
+                result.push("SVG_ERRORS".to_string());
+                warn!("{err}");
+                break;
+            }
+        };
+        match event {
+            quick_xml::events::Event::Start(bytes_start) => {
+                let name = bytes_start.name().0;
+                match name.as_bytes() {
+                    b"svg" => is_svg = true,
+                    b"script" => {
+                        result.push("SVG_JS".to_string());
+                        break;
+                    }
+                    _ => {}
+                }
+            }
+            quick_xml::events::Event::Eof => break,
+            _ => {}
+        };
     }
-    if !slice.starts_with(b"<?xml version=") {
-        return false;
+    if is_svg {
+        Some(result)
+    } else {
+        None
     }
-    slice = &slice[14..4096.min(slice.len())];
-    for index in slice
-        .iter()
-        .enumerate()
-        .filter_map(|(index, v)| if *v == b'<' { Some(index) } else { None })
-    {
-        let slice = &slice[index..];
-        if slice.starts_with(b"<svg") {
-            return true;
-        }
-    }
-    false
 }
 
 fn is_gif(data: &[u8]) -> bool {
@@ -472,8 +491,10 @@ impl ImageInfo {
 
         let skip_exif;
         let mut detect_nsfw = false;
+        let mut symbols = Vec::new();
 
-        if is_svg(&data) {
+        if let Some(mut svg_symbols) = check_svg(&data) {
+            symbols.append(&mut svg_symbols);
             let (fontdb, default_font) = if let Some(pair) = &global_context.fontdb {
                 pair
             } else {
@@ -581,13 +602,24 @@ impl ImageInfo {
 
                         let key = (|map_ref: &mut HashMap<String, String>| {
                             let mut index = 1;
+                            let mut tag_name = f.tag.to_string();
+                            if tag_name.starts_with("Tag(") {
+                                let context = match f.tag.0 {
+                                    exif::Context::Tiff => "Tiff",
+                                    exif::Context::Exif => "Exif",
+                                    exif::Context::Gps => "Gps",
+                                    exif::Context::Interop => "Interlop",
+                                    _ => "Unknown",
+                                };
+                                tag_name = format!("Tag_{}_{}", context, f.tag.1);
+                            }
                             loop {
                                 let key = match index {
-                                    1 => f.tag.to_string(),
-                                    _ => format!("{}#{}", f.tag, index),
+                                    1 => &tag_name,
+                                    _ => &format!("{}_{}", tag_name, index),
                                 };
-                                if !map_ref.contains_key(&key) {
-                                    return key;
+                                if !map_ref.contains_key(key) {
+                                    return key.to_string();
                                 }
                                 index += 1;
                             }
@@ -715,6 +747,7 @@ impl ImageInfo {
             metadata,
             ocr,
             qrcode,
+            symbols,
         })
     }
 }
@@ -1349,8 +1382,8 @@ fn test_tiff() -> Result<(), std::io::Error> {
     assert_eq!(primary.get("SamplesPerPixel").unwrap(), "3");
     assert_eq!(primary.get("StripByteCounts").unwrap(), "4");
     assert_eq!(primary.get("StripOffsets").unwrap(), "8");
-    assert_eq!(primary.get("Tag(Tiff, 285)").unwrap(), "\"T\\xc5\\x82o\"");
-    assert_eq!(primary.get("Tag(Tiff, 339)").unwrap(), "1, 1, 1");
+    assert_eq!(primary.get("Tag_Tiff_285").unwrap(), "\"T\\xc5\\x82o\"");
+    assert_eq!(primary.get("Tag_Tiff_339").unwrap(), "1, 1, 1");
     let tag_tiff_34675 = "0x\
                                 000002a06c636d73044000006d6e74725247422058595a2007e800010008000a\
                                 00340027616373704150504c0000000000000000000000000000000000000000\
@@ -1373,7 +1406,7 @@ fn test_tiff() -> Result<(), std::io::Error> {
                                 0000a3d70000547c00004ccd0000999a0000266700000f5c6d6c756300000000\
                                 000000010000000c656e5553000000080000001c00470049004d00506d6c7563\
                                 00000000000000010000000c656e5553000000080000001c0073005200470042";
-    assert_eq!(primary.get("Tag(Tiff, 34675)").unwrap(), tag_tiff_34675);
+    assert_eq!(primary.get("Tag_Tiff_34675").unwrap(), tag_tiff_34675);
     assert_eq!(primary.get("XResolution").unwrap(), "300 pixels per inch");
     assert_eq!(primary.get("YResolution").unwrap(), "300 pixels per inch");
 

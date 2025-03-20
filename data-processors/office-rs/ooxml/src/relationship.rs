@@ -1,4 +1,4 @@
-use crate::{archive::Archive, Ooxml, OoxmlError};
+use crate::{Ooxml, OoxmlError, archive::Archive};
 use serde::Deserialize;
 use std::io::{Read, Seek};
 
@@ -53,27 +53,69 @@ pub enum RelationshipType {
 impl From<String> for RelationshipType {
     fn from(s: String) -> RelationshipType {
         match s.as_str() {
-            "http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" => RelationshipType::OfficeDocument,
-            "http://schemas.openxmlformats.org/officeDocument/2006/relationships/header" => RelationshipType::Header,
-            "http://schemas.openxmlformats.org/officeDocument/2006/relationships/footer" => RelationshipType::Footer,
-            "http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" => RelationshipType::Image,
-            "http://schemas.openxmlformats.org/officeDocument/2006/relationships/chart" => RelationshipType::Chart,
-            "http://schemas.openxmlformats.org/officeDocument/2006/relationships/diagramData" => RelationshipType::DiagramData,
-            "http://schemas.openxmlformats.org/officeDocument/2006/relationships/package" => RelationshipType::Package,
-            "http://schemas.openxmlformats.org/officeDocument/2006/relationships/oleObject" => RelationshipType::OleObject,
-            "http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" => RelationshipType::Hyperlink,
-            "http://schemas.openxmlformats.org/officeDocument/2006/relationships/sharedStrings" => RelationshipType::SharedStrings,
-            "http://schemas.microsoft.com/office/2006/relationships/vbaProject" => RelationshipType::VbaProject,
-            "http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties" => RelationshipType::CoreProperties,
-            "http://schemas.openxmlformats.org/officeDocument/2006/relationships/extended-properties" => RelationshipType::ExtendedProperties,
-            "http://schemas.openxmlformats.org/officeDocument/2006/relationships/custom-properties" => RelationshipType::CustomProperties,
-            "http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings" => RelationshipType::Settings,
-            "http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" => RelationshipType::Worksheet,
-            "http://schemas.microsoft.com/office/2006/relationships/xlMacrosheet" => RelationshipType::Macrosheet,
-            "http://schemas.microsoft.com/office/2006/relationships/xlIntlMacrosheet" => RelationshipType::Macrosheet,
-            "http://schemas.openxmlformats.org/officeDocument/2006/relationships/dialogsheet" => RelationshipType::Dialogsheet,
-            "http://schemas.openxmlformats.org/officeDocument/2006/relationships/chartsheet" => RelationshipType::Chartsheet,
-            "http://schemas.openxmlformats.org/officeDocument/2006/relationships/drawing" => RelationshipType::Drawing,
+            "http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" => {
+                RelationshipType::OfficeDocument
+            }
+            "http://schemas.openxmlformats.org/officeDocument/2006/relationships/header" => {
+                RelationshipType::Header
+            }
+            "http://schemas.openxmlformats.org/officeDocument/2006/relationships/footer" => {
+                RelationshipType::Footer
+            }
+            "http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" => {
+                RelationshipType::Image
+            }
+            "http://schemas.openxmlformats.org/officeDocument/2006/relationships/chart" => {
+                RelationshipType::Chart
+            }
+            "http://schemas.openxmlformats.org/officeDocument/2006/relationships/diagramData" => {
+                RelationshipType::DiagramData
+            }
+            "http://schemas.openxmlformats.org/officeDocument/2006/relationships/package" => {
+                RelationshipType::Package
+            }
+            "http://schemas.openxmlformats.org/officeDocument/2006/relationships/oleObject" => {
+                RelationshipType::OleObject
+            }
+            "http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" => {
+                RelationshipType::Hyperlink
+            }
+            "http://schemas.openxmlformats.org/officeDocument/2006/relationships/sharedStrings" => {
+                RelationshipType::SharedStrings
+            }
+            "http://schemas.microsoft.com/office/2006/relationships/vbaProject" => {
+                RelationshipType::VbaProject
+            }
+            "http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties" => {
+                RelationshipType::CoreProperties
+            }
+            "http://schemas.openxmlformats.org/officeDocument/2006/relationships/extended-properties" => {
+                RelationshipType::ExtendedProperties
+            }
+            "http://schemas.openxmlformats.org/officeDocument/2006/relationships/custom-properties" => {
+                RelationshipType::CustomProperties
+            }
+            "http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings" => {
+                RelationshipType::Settings
+            }
+            "http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" => {
+                RelationshipType::Worksheet
+            }
+            "http://schemas.microsoft.com/office/2006/relationships/xlMacrosheet" => {
+                RelationshipType::Macrosheet
+            }
+            "http://schemas.microsoft.com/office/2006/relationships/xlIntlMacrosheet" => {
+                RelationshipType::Macrosheet
+            }
+            "http://schemas.openxmlformats.org/officeDocument/2006/relationships/dialogsheet" => {
+                RelationshipType::Dialogsheet
+            }
+            "http://schemas.openxmlformats.org/officeDocument/2006/relationships/chartsheet" => {
+                RelationshipType::Chartsheet
+            }
+            "http://schemas.openxmlformats.org/officeDocument/2006/relationships/drawing" => {
+                RelationshipType::Drawing
+            }
             _ => RelationshipType::Other(s),
         }
     }

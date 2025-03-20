@@ -4,13 +4,12 @@ edition.workspace = true
 version.workspace = true
 homepage = { workspace = true }
 license = { workspace = true }
-rust-version = { workspace = true }
 
 [dependencies]
 ctxole = { workspace = true }
 vba = { path = "../vba" }
-ctxunzip = { branch = "master", git = "ssh://git@gitlab.dev.contextal.com:2022/processing-engine/backends/libs-rs/ctxunzip.git" }
-convert_case = "0.6.0"
+ctxunzip = { path = "../../../libs/ctxunzip" }
+convert_case = "0.8.0"
 bitflags = "2.5.0"
 quick-xml = { workspace = true }
 serde = { workspace = true }

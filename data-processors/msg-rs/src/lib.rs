@@ -342,7 +342,7 @@ pub trait Message<'o, O: Read + Seek + 'o> {
     }
 
     /// Return a reader for the plain-text message body if available
-    fn plain_body(&self) -> Option<Result<impl Read + 'o, std::io::Error>> {
+    fn plain_body(&'o self) -> Option<Result<impl Read + 'o, std::io::Error>> {
         let cp = self
             .get_properties()
             .as_int("InternetCodepage")
@@ -356,7 +356,7 @@ pub trait Message<'o, O: Read + Seek + 'o> {
 
     /// Return a reader for the RTF message body if available
     fn rtf_body(
-        &self,
+        &'o self,
     ) -> Option<Result<crtf::CompressedRtf<impl Read + Seek + 'o>, std::io::Error>> {
         let compressed_stream = self.get_properties().get_stream("RtfCompressed")?;
         Some(match compressed_stream {
@@ -366,7 +366,7 @@ pub trait Message<'o, O: Read + Seek + 'o> {
     }
 
     /// Return a reader for the HTML message body if available
-    fn html_body(&self) -> Option<Result<impl Read + 'o, std::io::Error>> {
+    fn html_body(&'o self) -> Option<Result<impl Read + 'o, std::io::Error>> {
         let cp = self
             .get_properties()
             .as_int("InternetCodepage")

@@ -1,4 +1,4 @@
-use crate::{config::Config, error::UrlBackendError, BackendResultSymbols, ChildType, Url};
+use crate::{BackendResultSymbols, ChildType, Url, config::Config, error::UrlBackendError};
 use backend_utils::objects::BackendResultChild;
 use chromiumoxide::cdp::browser_protocol::{
     fetch,

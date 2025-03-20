@@ -1,4 +1,4 @@
-use crate::{xml::Xml, OdfError};
+use crate::{OdfError, xml::Xml};
 use serde::Serialize;
 use std::{collections::HashMap, io::BufRead};
 

@@ -1,14 +1,14 @@
 //! Ole *Agile Encryption*
 use super::EncryptionAlgo;
 use super::OleKey;
-use aes::cipher::{block_padding, BlockDecryptMut as _, KeyIvInit as _};
+use aes::cipher::{BlockDecryptMut as _, KeyIvInit as _, block_padding};
 use base64::Engine as _;
 use ctxutils::{cmp::Unsigned as _, io::*};
-use serde::{de::Error as _, Deserialize, Deserializer};
+use serde::{Deserialize, Deserializer, de::Error as _};
 use sha1::Sha1;
 use sha2::{
-    digest::{Digest, DynDigest},
     Sha256, Sha384, Sha512,
+    digest::{Digest, DynDigest},
 };
 use std::borrow::Cow;
 use std::io::{self, Read, Seek, Write};
@@ -443,10 +443,10 @@ trait CryptoData {
                 return Err(io::Error::new(
                     io::ErrorKind::InvalidData,
                     format!(
-                    "invalid/unsupported cipherAlgorithm ({}) with blockSize ({}) and keyBits ({})",
-                    algo, block_size, key_bits
-                ),
-                ))
+                        "invalid/unsupported cipherAlgorithm ({}) with blockSize ({}) and keyBits ({})",
+                        algo, block_size, key_bits
+                    ),
+                ));
             }
         }
         self.cd_chaining()?;
@@ -480,7 +480,7 @@ trait CryptoData {
                 return Err(io::Error::new(
                     io::ErrorKind::InvalidData,
                     format!("invalid hashAlgorithm ({})", algo),
-                ))
+                ));
             }
         };
         Ok(digest)

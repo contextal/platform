@@ -2,11 +2,11 @@
 use ctxole::crypto;
 
 use crate::{
+    Bof,
     from_record::{Anomalies, FromRecordStream},
     structures::BofType,
     workbook::{SheetInfo, Workbook},
-    worksheet::{find_regions, find_rows, CellReader, ProcessingResult},
-    Bof,
+    worksheet::{CellReader, ProcessingResult, find_regions, find_rows},
 };
 
 use super::{ExcelError, RecordStream};

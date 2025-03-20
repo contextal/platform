@@ -34,7 +34,7 @@ mod test;
 
 use ctxutils::{
     io::*,
-    win32::{filetime_to_datetime, GUID},
+    win32::{GUID, filetime_to_datetime},
 };
 use serde::{Serialize, Serializer};
 use std::collections::HashMap;

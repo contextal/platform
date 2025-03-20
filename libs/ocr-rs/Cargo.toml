@@ -1,14 +1,13 @@
 [package]
 name = "ocr-rs"
-version = "1.2.0"
-edition = "2021"
+version = "1.3.0"
+edition = "2024"
 homepage = "https://contextal.com/"
 license = "GPL-3.0-only"
 description = "OCR backend which uses Tesseract"
 
 [dependencies]
-anyhow = "1.0.75"
-backend-utils = { path = "../../libs/backend-utils" }
+backend-utils = {  path = "../backend-utils" }
 figment = { version = "0.10.12", features = ["toml", "env"] }
 image = "0.25.0"
 serde = { version = "1.0.188", features = ["derive"] }

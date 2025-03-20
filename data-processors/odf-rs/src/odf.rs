@@ -141,11 +141,7 @@ fn process_text<R: Read + BufRead, W: Write>(
 ) -> Result<(), OdfError> {
     let mut p_count = 0;
     let mut add_leading_space = false;
-    loop {
-        let event = match iter.next()? {
-            Some(event) => event,
-            None => break,
-        };
+    while let Some(event) = iter.next()? {
         match event {
             Event::StartElement(start_element) => match start_element.name.as_str() {
                 "p" | "h" => {

@@ -6,9 +6,11 @@ homepage = { workspace = true }
 license = { workspace = true }
 
 [dependencies]
-pgrules = { path = "../pgrules" }
+clap = { version = "4.5.29", features = ["derive"] }
+pgrules = { path = "../pgrules"}
 postgres = { version = "0.19.7", features = ["with-serde_json-1"] }
 rustyline = "14.0.0"
 serde_json = "1.0"
 tracing = { workspace = true }
 tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
+pest = { workspace = true }

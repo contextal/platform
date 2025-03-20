@@ -30,8 +30,8 @@ impl<R: Read> ExplodeStream<R> {
 impl<R: Read> Read for ExplodeStream<R> {
     fn read(&mut self, buf: &mut [u8]) -> Result<usize, std::io::Error> {
         match &mut self.0 {
-            ExplodeType::Explode4k(ref mut e) => e.read(buf),
-            ExplodeType::Explode8k(ref mut e) => e.read(buf),
+            ExplodeType::Explode4k(e) => e.read(buf),
+            ExplodeType::Explode8k(e) => e.read(buf),
         }
     }
 }

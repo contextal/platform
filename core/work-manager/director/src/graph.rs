@@ -3,16 +3,13 @@
 //! This module interacts with the GraphDB
 
 use futures::{pin_mut, stream::TryStreamExt};
+use pgrules::Interval;
 #[allow(unused_imports)]
 use tracing::{debug, error, info, warn};
 
 const SCENARIOS_COUNT: &str = "director_scenarios_total";
 const WORKS_COUNT: &str = "director_works_total";
 const PROCESSING_TIME: &str = "director_process_time_seconds";
-// Limit the number of neighbour works to match by the global query to:
-// max(scenario.min_matches * NEIGHBOUR_LIMIT_MUL, MIN_NEIGHBOURS)
-const NEIGHBOUR_LIMIT_MUL: usize = 10;
-const MIN_NEIGHBOURS: usize = 100;
 
 /// The graph database connector
 pub struct GraphDB {
@@ -20,46 +17,17 @@ pub struct GraphDB {
     write_client: tokio_postgres::Client,
     scenarios: Vec<(i64, tokio_postgres::Statement)>,
     get_before: tokio_postgres::Statement,
+    get_before_count: tokio_postgres::Statement,
     get_after: tokio_postgres::Statement,
+    get_after_count: tokio_postgres::Statement,
     save_actions: tokio_postgres::Statement,
 }
 
-#[derive(Debug, PartialEq)]
-/// PostgreSQL interval (not supported by the tokio_postgres crate)
-struct Interval {
-    micros: i64,
-    days: i32,
-    months: i32,
-}
-
-impl<'a> tokio_postgres::types::FromSql<'a> for Interval {
-    fn from_sql(
-        _ty: &tokio_postgres::types::Type,
-        raw: &'a [u8],
-    ) -> Result<Self, Box<dyn std::error::Error + Sync + Send>> {
-        if raw.len() == 8 + 4 + 4 {
-            Ok(Self {
-                micros: i64::from_be_bytes(raw[0..8].try_into().unwrap()),
-                days: i32::from_be_bytes(raw[8..12].try_into().unwrap()),
-                months: i32::from_be_bytes(raw[12..16].try_into().unwrap()),
-            })
-        } else {
-            Err("Failed to deserialize interval value".into())
-        }
-    }
-    fn accepts(ty: &tokio_postgres::types::Type) -> bool {
-        *ty == tokio_postgres::types::Type::INTERVAL
-    }
-}
-
-impl PartialOrd for Interval {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        if self.days != other.days || self.months != other.months {
-            None
-        } else {
-            Some(self.micros.cmp(&other.micros))
-        }
-    }
+async fn portal_next(
+    txn: &mut tokio_postgres::Transaction<'_>,
+    portal: &tokio_postgres::Portal,
+) -> Result<Option<tokio_postgres::row::Row>, tokio_postgres::error::Error> {
+    txn.query_portal(portal, 1).await.map(|mut rows| rows.pop())
 }
 
 impl GraphDB {
@@ -110,29 +78,64 @@ impl GraphDB {
             );
             return Err("Wrong database version".into());
         }
+        let qtypes = &[
+            tokio_postgres::types::Type::TEXT,
+            tokio_postgres::types::Type::INTERVAL,
+        ];
         let get_before = read_client
-            .prepare(
+            .prepare_typed(
                 "
             WITH ref AS (SELECT t FROM objects WHERE is_entry AND work_id = $1 LIMIT 1)
             SELECT work_id, ref.t - objects.t dt
             FROM objects, ref
             WHERE
+                objects.t >= ref.t - $2 AND
                 objects.t <= ref.t AND
                 work_id != $1 AND
                 is_entry
-            ORDER BY objects.t DESC LIMIT $2",
+            ORDER BY objects.t DESC",
+                qtypes,
+            )
+            .await?;
+        let get_before_count = read_client
+            .prepare_typed(
+                "
+            WITH ref AS (SELECT t FROM objects WHERE is_entry AND work_id = $1 LIMIT 1)
+            SELECT COUNT(*)
+            FROM objects, ref
+            WHERE
+                objects.t >= ref.t - $2 AND
+                objects.t <= ref.t AND
+                work_id != $1 AND
+                is_entry",
+                qtypes,
             )
             .await?;
         let get_after = read_client
-            .prepare(
+            .prepare_typed(
                 "
             WITH ref AS (SELECT t FROM objects WHERE is_entry AND work_id = $1 LIMIT 1)
             SELECT work_id, objects.t - ref.t AS dt
             FROM objects, ref
             WHERE
                 objects.t > ref.t AND
+                objects.t <= ref.t + $2 AND
                 is_entry
-            ORDER BY objects.t ASC LIMIT $2",
+            ORDER BY objects.t ASC",
+                qtypes,
+            )
+            .await?;
+        let get_after_count = read_client
+            .prepare_typed(
+                "
+            WITH ref AS (SELECT t FROM objects WHERE is_entry AND work_id = $1 LIMIT 1)
+            SELECT COUNT(*)
+            FROM objects, ref
+            WHERE
+                objects.t > ref.t AND
+                objects.t <= ref.t + $2 AND
+                is_entry",
+                qtypes,
             )
             .await?;
         debug!(
@@ -189,7 +192,9 @@ impl GraphDB {
             write_client,
             scenarios: Vec::new(),
             get_before,
+            get_before_count,
             get_after,
+            get_after_count,
             save_actions,
         };
         res.load_scenarios().await?;
@@ -199,14 +204,23 @@ impl GraphDB {
     #[tracing::instrument(level=tracing::Level::ERROR, skip(self))]
     pub async fn load_scenarios(&mut self) -> Result<(), Box<dyn std::error::Error>> {
         self.scenarios.clear();
-        let scn_it = self
-            .read_client
-            .query_raw("SELECT id, def FROM scenarios", &[] as &[&str])
-            .await?;
-        pin_mut!(scn_it);
+        let txn = self.read_client.transaction().await?;
+        // A portal is employed here in order to avoid deadlocks with nested queries
+        // This typically happens when the network buffer is filled with the outer query
+        // results and the inner query fails to fetch its results
+        // In this case the second query is just a "prepare", but that still uses the same
+        // communication channel
+        let portal = txn.bind("SELECT id, def FROM scenarios", &[]).await?;
         let mut n_scenarios = 0usize;
         let mut n_actual_scenarios = 0usize;
-        while let Some(row) = scn_it.try_next().await? {
+        loop {
+            let scn_it = txn.query_portal_raw(&portal, 1).await?;
+            pin_mut!(scn_it);
+            let next = scn_it.try_next().await?;
+            if next.is_none() {
+                break;
+            }
+            let row = next.unwrap();
             n_scenarios += 1;
             let id: i64 = row.try_get("id")?;
             let json_scenario: serde_json::Value = row.try_get("def")?;
@@ -217,23 +231,17 @@ impl GraphDB {
                     continue;
                 }
             };
-            if shared::SCN_VERSION < scenario.min_ver {
+            if !scenario.is_compatible() {
                 warn!(
-                    "Scenario {} (id {}) skipped due to unsatisfied minimum version requirements ({} < {})",
-                    scenario.name, id, shared::SCN_VERSION, scenario.min_ver
+                    "Scenario {} (id {}) skipped due to unsatisfied version requirements ({})",
+                    scenario.name,
+                    id,
+                    scenario.compatibility()
                 );
                 continue;
             }
-            if let Some(max_ver) = scenario.max_ver {
-                if shared::SCN_VERSION > max_ver {
-                    warn!(
-                        "Scenario {} (id {}) skipped due to unsatisfied maximum version requirements ({} > {})",
-                        scenario.name, id, shared::SCN_VERSION, max_ver
-                    );
-                }
-                continue;
-            }
-            let rule = pgrules::parse_to_sql_single_work(&scenario.local_query);
+            let rule =
+                pgrules::parse_to_sql(&scenario.local_query, pgrules::QueryType::ScenarioLocal);
             if let Err(e) = rule {
                 warn!(
                     "Scenario {} (id {}) skipped due to invalid rule ({}): {}",
@@ -241,25 +249,26 @@ impl GraphDB {
                 );
                 continue;
             }
-            let rule = format!(
+            let query = format!(
                 "SELECT t, def FROM scenarios WHERE id = {} AND EXISTS (SELECT 1 {})",
                 id,
-                rule.unwrap()
+                rule.unwrap().query
             );
-            match self.read_client.prepare(&rule).await {
+            match txn.prepare(&query).await {
                 Ok(stmt) => {
-                    debug!("Scenario {}: {}", id, rule);
+                    debug!("Scenario {} (id {}): {}", scenario.name, id, query);
                     self.scenarios.push((id, stmt));
                     n_actual_scenarios += 1;
                 }
                 Err(e) => {
                     warn!(
-                        "Scenario {} (id {}) skipped due to rule compilation failure ({}): {}",
-                        scenario.name, id, rule, e
+                        "Scenario id {} skipped due to rule compilation failure ({}): {}",
+                        id, query, e
                     );
                 }
             }
         }
+        txn.commit().await?;
         self.scenarios.shrink_to_fit();
         info!(
             "Loaded {} scenarios out of {}",
@@ -271,7 +280,7 @@ impl GraphDB {
 
     #[tracing::instrument(level=tracing::Level::ERROR, skip(self))]
     pub async fn apply_scenarios(
-        &self,
+        &mut self,
         work_id: &str,
     ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         let start = std::time::Instant::now();
@@ -294,7 +303,10 @@ impl GraphDB {
             let scenario: shared::scene::Scenario = serde_json::from_value(json_scenario).unwrap();
             if let Some(context) = scenario.context {
                 debug!("Testing scenario {} for global matches...", id);
-                let global_rule = pgrules::parse_to_sql_single_work(&context.global_query);
+                let global_rule = pgrules::parse_to_sql(
+                    &context.global_query,
+                    pgrules::QueryType::ScenarioGlobal,
+                );
                 if let Err(e) = global_rule {
                     warn!(
                         "Scenario {} skipped due to global query compilation error ({}): {}",
@@ -302,73 +314,132 @@ impl GraphDB {
                     );
                     continue;
                 }
-                let global_query = format!("SELECT EXISTS (SELECT 1 {})", global_rule.unwrap());
-                let global_stmt = self.read_client.prepare(&global_query).await?;
-                let mut attempts: i64 =
-                    i64::try_from((context.min_matches * NEIGHBOUR_LIMIT_MUL).max(MIN_NEIGHBOURS))
-                        .unwrap_or(i64::MAX);
-                let mut before_it = self
+                let global_parsed = global_rule.unwrap();
+                let Some(global_settings) = global_parsed.global_query_settings else {
+                    warn!(
+                        "Scenario {} skipped due to missing global query settings",
+                        scenario.name,
+                    );
+                    continue;
+                };
+                let time_window = global_settings.time_window;
+                let required_matches = global_settings.matches;
+                let has_with_clause = global_parsed.with_clause.is_some();
+                let global_query = format!(
+                    "{} SELECT EXISTS (SELECT 1 {})",
+                    global_parsed.with_clause.unwrap_or_default(),
+                    global_parsed.query
+                );
+                let mut txn = self
                     .read_client
-                    .query(&self.get_before, &[&work_id, &attempts])
-                    .await?
-                    .into_iter();
-                let mut after_it = self
-                    .read_client
-                    .query(&self.get_after, &[&work_id, &attempts])
-                    .await?
-                    .into_iter();
-                let mut before = before_it.next();
+                    .build_transaction()
+                    .read_only(true)
+                    .isolation_level(tokio_postgres::IsolationLevel::RepeatableRead)
+                    .start()
+                    .await?;
+                let global_stmt = txn.prepare(&global_query).await?;
+                let params: &[&(dyn tokio_postgres::types::ToSql + Sync)] =
+                    &[&work_id, &time_window];
+                let before_it = txn.bind(&self.get_before, params).await?;
+                let after_it = txn.bind(&self.get_after, params).await?;
+                let avail_before: i64 = txn.query_one(&self.get_before_count, params).await?.get(0);
+                let avail_after: i64 = txn.query_one(&self.get_after_count, params).await?.get(0);
+                let avail_neighbors: u32 = avail_before
+                    .saturating_add(avail_after)
+                    .try_into()
+                    .unwrap_or(u32::MAX);
+                let max_neighbors = global_settings.max_neighbors.unwrap_or(avail_neighbors);
+                let total_neigbors = max_neighbors.min(avail_neighbors);
+                let mut before = portal_next(&mut txn, &before_it).await?;
                 debug!("Before: {:?}", before);
-                let mut after = after_it.next();
+                let mut after = portal_next(&mut txn, &after_it).await?;
                 debug!("After: {:?}", after);
-                let mut nmatches = 0usize;
-                while nmatches < context.min_matches && attempts > 0 {
-                    attempts -= 1;
+                let mut nmatches = 0u32;
+                let target_matches = match &required_matches {
+                    pgrules::Matches::MoreThan(req) => *req,
+                    pgrules::Matches::MoreThanPercent(req) => {
+                        (f64::from(*req) / 100.0 * f64::from(total_neigbors)) as u32
+                    }
+                    pgrules::Matches::LessThan(req) => (*req).saturating_sub(1),
+                    pgrules::Matches::LessThanPercent(req) => {
+                        ((f64::from(*req) / 100.0 * f64::from(total_neigbors)) as u32)
+                            .saturating_sub(1)
+                    }
+                    pgrules::Matches::None => 0,
+                };
+                let mut attempts = 0u32;
+                for _ in 0..max_neighbors {
+                    attempts += 1;
+                    if nmatches > target_matches {
+                        break;
+                    }
                     let neighbour_work_id = if let Some(before_row) = &before {
                         if let Some(after_row) = &after {
                             let before_t: Interval = before_row.try_get("dt")?;
                             let after_t: Interval = after_row.try_get("dt")?;
                             if before_t <= after_t {
                                 let work_id: String = before_row.try_get("work_id")?;
-                                before = before_it.next();
+                                before = portal_next(&mut txn, &before_it).await?;
                                 work_id
                             } else {
                                 let work_id: String = after_row.try_get("work_id")?;
-                                after = after_it.next();
+                                after = portal_next(&mut txn, &after_it).await?;
                                 work_id
                             }
                         } else {
                             let work_id: String = before_row.try_get("work_id")?;
-                            before = before_it.next();
+                            before = portal_next(&mut txn, &before_it).await?;
                             work_id
                         }
+                    } else if let Some(after_row) = &after {
+                        let work_id: String = after_row.try_get("work_id")?;
+                        after = portal_next(&mut txn, &after_it).await?;
+                        work_id
                     } else {
-                        if let Some(after_row) = &after {
-                            let work_id: String = after_row.try_get("work_id")?;
-                            after = after_it.next();
-                            work_id
-                        } else {
-                            break;
-                        }
+                        // not reached
+                        break;
                     };
-                    let row = self
-                        .read_client
-                        .query_one(&global_stmt, &[&neighbour_work_id])
-                        .await?;
+                    let row = if has_with_clause {
+                        txn.query_one(&global_stmt, &[&neighbour_work_id, &work_id])
+                            .await?
+                    } else {
+                        txn.query_one(&global_stmt, &[&neighbour_work_id]).await?
+                    };
+
                     let global_match: bool = row.try_get(0)?;
                     if global_match {
                         nmatches += 1;
                     }
                     debug!(
-                        "Scenario {}: {}global match on {} (currently {}/{}) - {} lookups remaining",
-                        id, if global_match {""} else {"no "}, neighbour_work_id, nmatches, context.min_matches, attempts
+                        "Scenario {}: {}global match on {} ({} matches so far) - lookup {}/{}",
+                        id,
+                        if global_match { "" } else { "no " },
+                        neighbour_work_id,
+                        nmatches,
+                        attempts,
+                        max_neighbors
                     );
                 }
-                if nmatches < context.min_matches {
-                    debug!(
-                        "Scenario {}: not enough matches ({}/{})",
-                        id, nmatches, context.min_matches
-                    );
+                let matched = match required_matches {
+                    pgrules::Matches::MoreThan(_) | pgrules::Matches::MoreThanPercent(_) => {
+                        nmatches > target_matches
+                    }
+                    pgrules::Matches::LessThan(_) | pgrules::Matches::LessThanPercent(_) => {
+                        nmatches <= target_matches
+                    }
+                    pgrules::Matches::None => nmatches == 0,
+                };
+                debug!(
+                    "Scenario {}: condition ({}) {}met (matches: {}, target: {}, max_neighbors: {}, attempts: {})",
+                    id,
+                    required_matches,
+                    if matched { "" } else { "not "},
+                    nmatches,
+                    target_matches,
+                    max_neighbors,
+                    attempts,
+                );
+                if !matched {
                     continue;
                 }
             }

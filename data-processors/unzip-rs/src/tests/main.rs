@@ -38,10 +38,12 @@ fn longer_uncompressed_stream_size() {
         panic!("BackendResultKind::Ok is expected")
     };
 
-    assert!(backend_result.children[0]
-        .symbols
-        .iter()
-        .any(|sym| *sym == "ZIP_DSIZE_MISMATCH"));
+    assert!(
+        backend_result.children[0]
+            .symbols
+            .iter()
+            .any(|sym| *sym == "ZIP_DSIZE_MISMATCH")
+    );
 }
 
 #[test]
@@ -54,10 +56,12 @@ fn shorter_uncompressed_stream_size() {
         panic!("BackendResultKind::Ok is expected")
     };
 
-    assert!(backend_result.children[0]
-        .symbols
-        .iter()
-        .any(|sym| *sym == "ZIP_DSIZE_MISMATCH"));
+    assert!(
+        backend_result.children[0]
+            .symbols
+            .iter()
+            .any(|sym| *sym == "ZIP_DSIZE_MISMATCH")
+    );
 }
 
 #[test]
@@ -70,10 +74,12 @@ fn valid_uncompressed_stream_sizes() {
         panic!("BackendResultKind::Ok variant is expected")
     };
 
-    assert!(backend_result
-        .children
-        .iter()
-        .all(|child| child.symbols.iter().all(|sym| *sym != "ZIP_DSIZE_MISMATCH")));
+    assert!(
+        backend_result
+            .children
+            .iter()
+            .all(|child| child.symbols.iter().all(|sym| *sym != "ZIP_DSIZE_MISMATCH"))
+    );
 }
 
 #[test]
@@ -86,10 +92,12 @@ fn much_longer_compressed_stream_size() {
         panic!("BackendResultKind::Ok is expected")
     };
 
-    assert!(backend_result.children[0]
-        .symbols
-        .iter()
-        .any(|sym| *sym == "ZIP_CSIZE_MISMATCH"));
+    assert!(
+        backend_result.children[0]
+            .symbols
+            .iter()
+            .any(|sym| *sym == "ZIP_CSIZE_MISMATCH")
+    );
 }
 
 #[test]

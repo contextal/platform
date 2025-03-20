@@ -80,7 +80,7 @@ pub fn process_request(
     if let Err(e) = std::io::copy(&mut gz, &mut outf) {
         match e.kind() {
             std::io::ErrorKind::InvalidData | std::io::ErrorKind::UnexpectedEof => {
-                return Ok(BackendResultKind::error(format!("Invalid data ({})", e)))
+                return Ok(BackendResultKind::error(format!("Invalid data ({})", e)));
             }
             std::io::ErrorKind::Other => {
                 debug!("Limit exceeded: {e}");

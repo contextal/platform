@@ -1,11 +1,11 @@
 //! Ole *Standard Encryption*
 use super::EncryptionAlgo;
 use super::OleKey;
-use aes::cipher::{inout, BlockDecrypt as _};
+use aes::cipher::{BlockDecrypt as _, inout};
 use ctxutils::{cmp::Unsigned as _, io::*};
 use sha1::{
-    digest::{crypto_common::KeyInit as _, Digest as _},
     Sha1,
+    digest::{Digest as _, crypto_common::KeyInit as _},
 };
 use std::io::{self, Read, Seek, Write};
 use tracing::{debug, warn};

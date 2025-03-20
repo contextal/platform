@@ -1,8 +1,8 @@
 //! Facilities for reading runtime configuration values
 use crate::TextBackendError;
 use figment::{
-    providers::{Env, Format, Toml},
     Figment,
+    providers::{Env, Format, Toml},
 };
 use serde::Deserialize;
 use tracing::trace;

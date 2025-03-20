@@ -1947,7 +1947,10 @@ fn control_flag_set_state_encoding(state: &mut GroupState, name: &str, arg: Opti
             state.set_codepage(10000u16)
         }
         _ => {
-            panic!("Programmer error: {} was indicated as an encoding-related control flag, without adding an encoding mapping for it.", name)
+            panic!(
+                "Programmer error: {} was indicated as an encoding-related control flag, without adding an encoding mapping for it.",
+                name
+            )
         }
     }
     state.set_value(name, arg);
@@ -1961,7 +1964,10 @@ fn control_value_set_state_encoding(state: &mut GroupState, name: &str, arg: Opt
     match name {
         "ansicpg" => state.set_codepage(arg.unwrap_or(1252i32) as u16),
         _ => {
-            panic!("Programmer error: {} was indicated as an encoding-related control value, without adding an encoding mapping for it.", name)
+            panic!(
+                "Programmer error: {} was indicated as an encoding-related control value, without adding an encoding mapping for it.",
+                name
+            )
         }
     }
 

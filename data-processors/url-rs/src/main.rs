@@ -13,7 +13,7 @@ use tokio::{
 use tracing::{error, trace};
 use tracing_subscriber::prelude::*;
 use url_rs::{
-    backend_state::Backend, config::Config, error::UrlBackendError, BackendResultSymbols,
+    BackendResultSymbols, backend_state::Backend, config::Config, error::UrlBackendError,
 };
 
 fn main() -> Result<(), UrlBackendError> {

@@ -1,14 +1,14 @@
 [package]
 name = "url-rs"
-version = "1.2.0"
-edition = "2021"
+version = "1.3.0"
+edition = "2024"
 homepage = "https://contextal.com/"
 license = "GPL-3.0-only"
 description = "URL backend"
 
 [dependencies]
-backend-utils = { path = "../../libs/backend-utils" }
-base64 = "0.21.7"
+backend-utils = {  path = "../../libs/backend-utils" }
+base64 = "0.22.1"
 #chromiumoxide = { version = "0.5.7", features = ["tokio", "tokio-runtime", "bytes"], default-features = false }
 chromiumoxide = { git = "https://github.com/mattsse/chromiumoxide", features = ["tokio-runtime"], default-features = false, branch = "main"}
 data-url = "0.3.1"
@@ -19,7 +19,7 @@ scopeguard = "1.2.0"
 serde = { version = "1.0.188", features = ["derive"] }
 serde_json = "1.0.107"
 tempfile = "3.10.1"
-thiserror = "1.0.51"
+thiserror = "2"
 tokio = { version = "1.36.0", features = ["rt-multi-thread", "time"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3.17", features = ["env-filter"] }

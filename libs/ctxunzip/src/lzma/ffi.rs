@@ -4,7 +4,7 @@
 #![allow(unused_variables)]
 #![allow(dead_code)]
 #[link(name = "lzma")]
-extern "C" {}
+unsafe extern "C" {}
 pub const UINT64_MAX: u64 = u64::MAX;
 pub const LZMA_VERSION_MAJOR: u32 = 5;
 pub const LZMA_VERSION_MINOR: u32 = 4;
@@ -64,10 +64,10 @@ pub const LZMA_STREAM_HEADER_SIZE: u32 = 12;
 pub const LZMA_BACKWARD_SIZE_MIN: u32 = 4;
 pub const LZMA_BLOCK_HEADER_SIZE_MIN: u32 = 8;
 pub const LZMA_BLOCK_HEADER_SIZE_MAX: u32 = 1024;
-extern "C" {
+unsafe extern "C" {
     pub fn lzma_version_number() -> u32;
 }
-extern "C" {
+unsafe extern "C" {
     pub fn lzma_version_string() -> *const ::std::os::raw::c_char;
 }
 pub type lzma_bool = ::std::os::raw::c_uchar;
@@ -385,26 +385,26 @@ fn bindgen_test_layout_lzma_stream() {
     );
 }
 
-extern "C" {
+unsafe extern "C" {
     pub fn lzma_code(strm: *mut lzma_stream, action: lzma_action) -> lzma_ret;
 }
-extern "C" {
+unsafe extern "C" {
     pub fn lzma_end(strm: *mut lzma_stream);
 }
-extern "C" {
+unsafe extern "C" {
     pub fn lzma_get_progress(strm: *mut lzma_stream, progress_in: *mut u64, progress_out: *mut u64);
 }
-extern "C" {
+unsafe extern "C" {
     pub fn lzma_memusage(strm: *const lzma_stream) -> u64;
 }
-extern "C" {
+unsafe extern "C" {
     pub fn lzma_memlimit_get(strm: *const lzma_stream) -> u64;
 }
-extern "C" {
+unsafe extern "C" {
     pub fn lzma_memlimit_set(strm: *mut lzma_stream, memlimit: u64) -> lzma_ret;
 }
 pub type lzma_vli = u64;
-extern "C" {
+unsafe extern "C" {
     pub fn lzma_vli_encode(
         vli: lzma_vli,
         vli_pos: *mut usize,
@@ -413,7 +413,7 @@ extern "C" {
         out_size: usize,
     ) -> lzma_ret;
 }
-extern "C" {
+unsafe extern "C" {
     pub fn lzma_vli_decode(
         vli: *mut lzma_vli,
         vli_pos: *mut usize,
@@ -422,7 +422,7 @@ extern "C" {
         in_size: usize,
     ) -> lzma_ret;
 }
-extern "C" {
+unsafe extern "C" {
     pub fn lzma_vli_size(vli: lzma_vli) -> u32;
 }
 pub const LZMA_CHECK_NONE: lzma_check = 0;
@@ -430,19 +430,19 @@ pub const LZMA_CHECK_CRC32: lzma_check = 1;
 pub const LZMA_CHECK_CRC64: lzma_check = 4;
 pub const LZMA_CHECK_SHA256: lzma_check = 10;
 pub type lzma_check = ::std::os::raw::c_uint;
-extern "C" {
+unsafe extern "C" {
     pub fn lzma_check_is_supported(check: lzma_check) -> lzma_bool;
 }
-extern "C" {
+unsafe extern "C" {
     pub fn lzma_check_size(check: lzma_check) -> u32;
 }
-extern "C" {
+unsafe extern "C" {
     pub fn lzma_crc32(buf: *const u8, size: usize, crc: u32) -> u32;
 }
-extern "C" {
+unsafe extern "C" {
     pub fn lzma_crc64(buf: *const u8, size: usize, crc: u64) -> u64;
 }
-extern "C" {
+unsafe extern "C" {
     pub fn lzma_get_check(strm: *const lzma_stream) -> lzma_check;
 }
 #[repr(C)]
@@ -486,38 +486,38 @@ fn bindgen_test_layout_lzma_filter() {
         )
     );
 }
-extern "C" {
+unsafe extern "C" {
     pub fn lzma_filter_encoder_is_supported(id: lzma_vli) -> lzma_bool;
 }
-extern "C" {
+unsafe extern "C" {
     pub fn lzma_filter_decoder_is_supported(id: lzma_vli) -> lzma_bool;
 }
-extern "C" {
+unsafe extern "C" {
     pub fn lzma_filters_copy(
         src: *const lzma_filter,
         dest: *mut lzma_filter,
         allocator: *const lzma_allocator,
     ) -> lzma_ret;
 }
-extern "C" {
+unsafe extern "C" {
     pub fn lzma_filters_free(filters: *mut lzma_filter, allocator: *const lzma_allocator);
 }
-extern "C" {
+unsafe extern "C" {
     pub fn lzma_raw_encoder_memusage(filters: *const lzma_filter) -> u64;
 }
-extern "C" {
+unsafe extern "C" {
     pub fn lzma_raw_decoder_memusage(filters: *const lzma_filter) -> u64;
 }
-extern "C" {
+unsafe extern "C" {
     pub fn lzma_raw_encoder(strm: *mut lzma_stream, filters: *const lzma_filter) -> lzma_ret;
 }
-extern "C" {
+unsafe extern "C" {
     pub fn lzma_raw_decoder(strm: *mut lzma_stream, filters: *const lzma_filter) -> lzma_ret;
 }
-extern "C" {
+unsafe extern "C" {
     pub fn lzma_filters_update(strm: *mut lzma_stream, filters: *const lzma_filter) -> lzma_ret;
 }
-extern "C" {
+unsafe extern "C" {
     pub fn lzma_raw_buffer_encode(
         filters: *const lzma_filter,
         allocator: *const lzma_allocator,
@@ -528,7 +528,7 @@ extern "C" {
         out_size: usize,
     ) -> lzma_ret;
 }
-extern "C" {
+unsafe extern "C" {
     pub fn lzma_raw_buffer_decode(
         filters: *const lzma_filter,
         allocator: *const lzma_allocator,
@@ -540,13 +540,13 @@ extern "C" {
         out_size: usize,
     ) -> lzma_ret;
 }
-extern "C" {
+unsafe extern "C" {
     pub fn lzma_properties_size(size: *mut u32, filter: *const lzma_filter) -> lzma_ret;
 }
-extern "C" {
+unsafe extern "C" {
     pub fn lzma_properties_encode(filter: *const lzma_filter, props: *mut u8) -> lzma_ret;
 }
-extern "C" {
+unsafe extern "C" {
     pub fn lzma_properties_decode(
         filter: *mut lzma_filter,
         allocator: *const lzma_allocator,
@@ -554,10 +554,10 @@ extern "C" {
         props_size: usize,
     ) -> lzma_ret;
 }
-extern "C" {
+unsafe extern "C" {
     pub fn lzma_filter_flags_size(size: *mut u32, filter: *const lzma_filter) -> lzma_ret;
 }
-extern "C" {
+unsafe extern "C" {
     pub fn lzma_filter_flags_encode(
         filter: *const lzma_filter,
         out: *mut u8,
@@ -565,7 +565,7 @@ extern "C" {
         out_size: usize,
     ) -> lzma_ret;
 }
-extern "C" {
+unsafe extern "C" {
     pub fn lzma_filter_flags_decode(
         filter: *mut lzma_filter,
         allocator: *const lzma_allocator,
@@ -574,7 +574,7 @@ extern "C" {
         in_size: usize,
     ) -> lzma_ret;
 }
-extern "C" {
+unsafe extern "C" {
     pub fn lzma_str_to_filters(
         str_: *const ::std::os::raw::c_char,
         error_pos: *mut ::std::os::raw::c_int,
@@ -583,7 +583,7 @@ extern "C" {
         allocator: *const lzma_allocator,
     ) -> *const ::std::os::raw::c_char;
 }
-extern "C" {
+unsafe extern "C" {
     pub fn lzma_str_from_filters(
         str_: *mut *mut ::std::os::raw::c_char,
         filters: *const lzma_filter,
@@ -591,7 +591,7 @@ extern "C" {
         allocator: *const lzma_allocator,
     ) -> lzma_ret;
 }
-extern "C" {
+unsafe extern "C" {
     pub fn lzma_str_list_filters(
         str_: *mut *mut ::std::os::raw::c_char,
         filter_id: lzma_vli,
@@ -744,13 +744,13 @@ pub const LZMA_MF_BT2: lzma_match_finder = 18;
 pub const LZMA_MF_BT3: lzma_match_finder = 19;
 pub const LZMA_MF_BT4: lzma_match_finder = 20;
 pub type lzma_match_finder = ::std::os::raw::c_uint;
-extern "C" {
+unsafe extern "C" {
     pub fn lzma_mf_is_supported(match_finder: lzma_match_finder) -> lzma_bool;
 }
 pub const LZMA_MODE_FAST: lzma_mode = 1;
 pub const LZMA_MODE_NORMAL: lzma_mode = 2;
 pub type lzma_mode = ::std::os::raw::c_uint;
-extern "C" {
+unsafe extern "C" {
     pub fn lzma_mode_is_supported(mode: lzma_mode) -> lzma_bool;
 }
 #[repr(C)]
@@ -1036,7 +1036,7 @@ fn bindgen_test_layout_lzma_options_lzma() {
         )
     );
 }
-extern "C" {
+unsafe extern "C" {
     pub fn lzma_lzma_preset(options: *mut lzma_options_lzma, preset: u32) -> lzma_bool;
 }
 #[repr(C)]
@@ -1300,16 +1300,16 @@ fn bindgen_test_layout_lzma_mt() {
         )
     );
 }
-extern "C" {
+unsafe extern "C" {
     pub fn lzma_easy_encoder_memusage(preset: u32) -> u64;
 }
-extern "C" {
+unsafe extern "C" {
     pub fn lzma_easy_decoder_memusage(preset: u32) -> u64;
 }
-extern "C" {
+unsafe extern "C" {
     pub fn lzma_easy_encoder(strm: *mut lzma_stream, preset: u32, check: lzma_check) -> lzma_ret;
 }
-extern "C" {
+unsafe extern "C" {
     pub fn lzma_easy_buffer_encode(
         preset: u32,
         check: lzma_check,
@@ -1321,29 +1321,29 @@ extern "C" {
         out_size: usize,
     ) -> lzma_ret;
 }
-extern "C" {
+unsafe extern "C" {
     pub fn lzma_stream_encoder(
         strm: *mut lzma_stream,
         filters: *const lzma_filter,
         check: lzma_check,
     ) -> lzma_ret;
 }
-extern "C" {
+unsafe extern "C" {
     pub fn lzma_stream_encoder_mt_memusage(options: *const lzma_mt) -> u64;
 }
-extern "C" {
+unsafe extern "C" {
     pub fn lzma_stream_encoder_mt(strm: *mut lzma_stream, options: *const lzma_mt) -> lzma_ret;
 }
-extern "C" {
+unsafe extern "C" {
     pub fn lzma_alone_encoder(
         strm: *mut lzma_stream,
         options: *const lzma_options_lzma,
     ) -> lzma_ret;
 }
-extern "C" {
+unsafe extern "C" {
     pub fn lzma_stream_buffer_bound(uncompressed_size: usize) -> usize;
 }
-extern "C" {
+unsafe extern "C" {
     pub fn lzma_stream_buffer_encode(
         filters: *mut lzma_filter,
         check: lzma_check,
@@ -1355,28 +1355,28 @@ extern "C" {
         out_size: usize,
     ) -> lzma_ret;
 }
-extern "C" {
+unsafe extern "C" {
     pub fn lzma_microlzma_encoder(
         strm: *mut lzma_stream,
         options: *const lzma_options_lzma,
     ) -> lzma_ret;
 }
-extern "C" {
+unsafe extern "C" {
     pub fn lzma_stream_decoder(strm: *mut lzma_stream, memlimit: u64, flags: u32) -> lzma_ret;
 }
-extern "C" {
+unsafe extern "C" {
     pub fn lzma_stream_decoder_mt(strm: *mut lzma_stream, options: *const lzma_mt) -> lzma_ret;
 }
-extern "C" {
+unsafe extern "C" {
     pub fn lzma_auto_decoder(strm: *mut lzma_stream, memlimit: u64, flags: u32) -> lzma_ret;
 }
-extern "C" {
+unsafe extern "C" {
     pub fn lzma_alone_decoder(strm: *mut lzma_stream, memlimit: u64) -> lzma_ret;
 }
-extern "C" {
+unsafe extern "C" {
     pub fn lzma_lzip_decoder(strm: *mut lzma_stream, memlimit: u64, flags: u32) -> lzma_ret;
 }
-extern "C" {
+unsafe extern "C" {
     pub fn lzma_stream_buffer_decode(
         memlimit: *mut u64,
         flags: u32,
@@ -1389,7 +1389,7 @@ extern "C" {
         out_size: usize,
     ) -> lzma_ret;
 }
-extern "C" {
+unsafe extern "C" {
     pub fn lzma_microlzma_decoder(
         strm: *mut lzma_stream,
         comp_size: u64,
@@ -1604,19 +1604,19 @@ fn bindgen_test_layout_lzma_stream_flags() {
         )
     );
 }
-extern "C" {
+unsafe extern "C" {
     pub fn lzma_stream_header_encode(options: *const lzma_stream_flags, out: *mut u8) -> lzma_ret;
 }
-extern "C" {
+unsafe extern "C" {
     pub fn lzma_stream_footer_encode(options: *const lzma_stream_flags, out: *mut u8) -> lzma_ret;
 }
-extern "C" {
+unsafe extern "C" {
     pub fn lzma_stream_header_decode(options: *mut lzma_stream_flags, in_: *const u8) -> lzma_ret;
 }
-extern "C" {
+unsafe extern "C" {
     pub fn lzma_stream_footer_decode(options: *mut lzma_stream_flags, in_: *const u8) -> lzma_ret;
 }
-extern "C" {
+unsafe extern "C" {
     pub fn lzma_stream_flags_compare(
         a: *const lzma_stream_flags,
         b: *const lzma_stream_flags,
@@ -1971,38 +1971,38 @@ fn bindgen_test_layout_lzma_block() {
         )
     );
 }
-extern "C" {
+unsafe extern "C" {
     pub fn lzma_block_header_size(block: *mut lzma_block) -> lzma_ret;
 }
-extern "C" {
+unsafe extern "C" {
     pub fn lzma_block_header_encode(block: *const lzma_block, out: *mut u8) -> lzma_ret;
 }
-extern "C" {
+unsafe extern "C" {
     pub fn lzma_block_header_decode(
         block: *mut lzma_block,
         allocator: *const lzma_allocator,
         in_: *const u8,
     ) -> lzma_ret;
 }
-extern "C" {
+unsafe extern "C" {
     pub fn lzma_block_compressed_size(block: *mut lzma_block, unpadded_size: lzma_vli) -> lzma_ret;
 }
-extern "C" {
+unsafe extern "C" {
     pub fn lzma_block_unpadded_size(block: *const lzma_block) -> lzma_vli;
 }
-extern "C" {
+unsafe extern "C" {
     pub fn lzma_block_total_size(block: *const lzma_block) -> lzma_vli;
 }
-extern "C" {
+unsafe extern "C" {
     pub fn lzma_block_encoder(strm: *mut lzma_stream, block: *mut lzma_block) -> lzma_ret;
 }
-extern "C" {
+unsafe extern "C" {
     pub fn lzma_block_decoder(strm: *mut lzma_stream, block: *mut lzma_block) -> lzma_ret;
 }
-extern "C" {
+unsafe extern "C" {
     pub fn lzma_block_buffer_bound(uncompressed_size: usize) -> usize;
 }
-extern "C" {
+unsafe extern "C" {
     pub fn lzma_block_buffer_encode(
         block: *mut lzma_block,
         allocator: *const lzma_allocator,
@@ -2013,7 +2013,7 @@ extern "C" {
         out_size: usize,
     ) -> lzma_ret;
 }
-extern "C" {
+unsafe extern "C" {
     pub fn lzma_block_uncomp_encode(
         block: *mut lzma_block,
         in_: *const u8,
@@ -2023,7 +2023,7 @@ extern "C" {
         out_size: usize,
     ) -> lzma_ret;
 }
-extern "C" {
+unsafe extern "C" {
     pub fn lzma_block_buffer_decode(
         block: *mut lzma_block,
         allocator: *const lzma_allocator,
@@ -2543,19 +2543,19 @@ pub const LZMA_INDEX_ITER_STREAM: lzma_index_iter_mode = 1;
 pub const LZMA_INDEX_ITER_BLOCK: lzma_index_iter_mode = 2;
 pub const LZMA_INDEX_ITER_NONEMPTY_BLOCK: lzma_index_iter_mode = 3;
 pub type lzma_index_iter_mode = ::std::os::raw::c_uint;
-extern "C" {
+unsafe extern "C" {
     pub fn lzma_index_memusage(streams: lzma_vli, blocks: lzma_vli) -> u64;
 }
-extern "C" {
+unsafe extern "C" {
     pub fn lzma_index_memused(i: *const lzma_index) -> u64;
 }
-extern "C" {
+unsafe extern "C" {
     pub fn lzma_index_init(allocator: *const lzma_allocator) -> *mut lzma_index;
 }
-extern "C" {
+unsafe extern "C" {
     pub fn lzma_index_end(i: *mut lzma_index, allocator: *const lzma_allocator);
 }
-extern "C" {
+unsafe extern "C" {
     pub fn lzma_index_append(
         i: *mut lzma_index,
         allocator: *const lzma_allocator,
@@ -2563,78 +2563,78 @@ extern "C" {
         uncompressed_size: lzma_vli,
     ) -> lzma_ret;
 }
-extern "C" {
+unsafe extern "C" {
     pub fn lzma_index_stream_flags(
         i: *mut lzma_index,
         stream_flags: *const lzma_stream_flags,
     ) -> lzma_ret;
 }
-extern "C" {
+unsafe extern "C" {
     pub fn lzma_index_checks(i: *const lzma_index) -> u32;
 }
-extern "C" {
+unsafe extern "C" {
     pub fn lzma_index_stream_padding(i: *mut lzma_index, stream_padding: lzma_vli) -> lzma_ret;
 }
-extern "C" {
+unsafe extern "C" {
     pub fn lzma_index_stream_count(i: *const lzma_index) -> lzma_vli;
 }
-extern "C" {
+unsafe extern "C" {
     pub fn lzma_index_block_count(i: *const lzma_index) -> lzma_vli;
 }
-extern "C" {
+unsafe extern "C" {
     pub fn lzma_index_size(i: *const lzma_index) -> lzma_vli;
 }
-extern "C" {
+unsafe extern "C" {
     pub fn lzma_index_stream_size(i: *const lzma_index) -> lzma_vli;
 }
-extern "C" {
+unsafe extern "C" {
     pub fn lzma_index_total_size(i: *const lzma_index) -> lzma_vli;
 }
-extern "C" {
+unsafe extern "C" {
     pub fn lzma_index_file_size(i: *const lzma_index) -> lzma_vli;
 }
-extern "C" {
+unsafe extern "C" {
     pub fn lzma_index_uncompressed_size(i: *const lzma_index) -> lzma_vli;
 }
-extern "C" {
+unsafe extern "C" {
     pub fn lzma_index_iter_init(iter: *mut lzma_index_iter, i: *const lzma_index);
 }
-extern "C" {
+unsafe extern "C" {
     pub fn lzma_index_iter_rewind(iter: *mut lzma_index_iter);
 }
-extern "C" {
+unsafe extern "C" {
     pub fn lzma_index_iter_next(
         iter: *mut lzma_index_iter,
         mode: lzma_index_iter_mode,
     ) -> lzma_bool;
 }
-extern "C" {
+unsafe extern "C" {
     pub fn lzma_index_iter_locate(iter: *mut lzma_index_iter, target: lzma_vli) -> lzma_bool;
 }
-extern "C" {
+unsafe extern "C" {
     pub fn lzma_index_cat(
         dest: *mut lzma_index,
         src: *mut lzma_index,
         allocator: *const lzma_allocator,
     ) -> lzma_ret;
 }
-extern "C" {
+unsafe extern "C" {
     pub fn lzma_index_dup(
         i: *const lzma_index,
         allocator: *const lzma_allocator,
     ) -> *mut lzma_index;
 }
-extern "C" {
+unsafe extern "C" {
     pub fn lzma_index_encoder(strm: *mut lzma_stream, i: *const lzma_index) -> lzma_ret;
 }
-extern "C" {
+unsafe extern "C" {
     pub fn lzma_index_decoder(
         strm: *mut lzma_stream,
         i: *mut *mut lzma_index,
         memlimit: u64,
     ) -> lzma_ret;
 }
-extern "C" {
+unsafe extern "C" {
     pub fn lzma_index_buffer_encode(
         i: *const lzma_index,
         out: *mut u8,
@@ -2642,7 +2642,7 @@ extern "C" {
         out_size: usize,
     ) -> lzma_ret;
 }
-extern "C" {
+unsafe extern "C" {
     pub fn lzma_index_buffer_decode(
         i: *mut *mut lzma_index,
         memlimit: *mut u64,
@@ -2652,7 +2652,7 @@ extern "C" {
         in_size: usize,
     ) -> lzma_ret;
 }
-extern "C" {
+unsafe extern "C" {
     pub fn lzma_file_info_decoder(
         strm: *mut lzma_stream,
         dest_index: *mut *mut lzma_index,
@@ -2666,23 +2666,23 @@ pub struct lzma_index_hash_s {
     _unused: [u8; 0],
 }
 pub type lzma_index_hash = lzma_index_hash_s;
-extern "C" {
+unsafe extern "C" {
     pub fn lzma_index_hash_init(
         index_hash: *mut lzma_index_hash,
         allocator: *const lzma_allocator,
     ) -> *mut lzma_index_hash;
 }
-extern "C" {
+unsafe extern "C" {
     pub fn lzma_index_hash_end(index_hash: *mut lzma_index_hash, allocator: *const lzma_allocator);
 }
-extern "C" {
+unsafe extern "C" {
     pub fn lzma_index_hash_append(
         index_hash: *mut lzma_index_hash,
         unpadded_size: lzma_vli,
         uncompressed_size: lzma_vli,
     ) -> lzma_ret;
 }
-extern "C" {
+unsafe extern "C" {
     pub fn lzma_index_hash_decode(
         index_hash: *mut lzma_index_hash,
         in_: *const u8,
@@ -2690,12 +2690,12 @@ extern "C" {
         in_size: usize,
     ) -> lzma_ret;
 }
-extern "C" {
+unsafe extern "C" {
     pub fn lzma_index_hash_size(index_hash: *const lzma_index_hash) -> lzma_vli;
 }
-extern "C" {
+unsafe extern "C" {
     pub fn lzma_physmem() -> u64;
 }
-extern "C" {
+unsafe extern "C" {
     pub fn lzma_cputhreads() -> u32;
 }

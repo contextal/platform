@@ -38,7 +38,7 @@ pub fn sanitize_meta_keys(meta: &mut Metadata) {
                 key, sanitized_key
             );
         } else {
-            warn!(
+            debug!(
                 "Sanitized metadata key \"{}\" to \"{}\"",
                 key, sanitized_key
             );

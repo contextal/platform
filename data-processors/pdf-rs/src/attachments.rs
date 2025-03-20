@@ -1,4 +1,4 @@
-use crate::{config::Config, ChildType, PdfBackendError};
+use crate::{ChildType, PdfBackendError, config::Config};
 use backend_utils::objects::BackendResultChild;
 use pdfium_render::prelude::*;
 use serde::Serialize;

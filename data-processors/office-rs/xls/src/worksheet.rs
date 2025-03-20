@@ -1,12 +1,12 @@
 //! *Worksheet* associated structures
 use crate::{
+    DataLocation, ExcelError, RecordStream,
     records::{
         from_record::{Anomalies, FromRecordStream},
         *,
     },
     structures::BofType,
     workbook::{SheetInfo, Workbook},
-    DataLocation, ExcelError, RecordStream,
 };
 use ctxole::crypto;
 use std::{

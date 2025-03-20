@@ -2,8 +2,8 @@
 use crate::error::UrlBackendError;
 use chromiumoxide::cdp::browser_protocol::network::ResourceType;
 use figment::{
-    providers::{Env, Format, Toml},
     Figment,
+    providers::{Env, Format, Toml},
 };
 use serde::Deserialize;
 use tracing::trace;

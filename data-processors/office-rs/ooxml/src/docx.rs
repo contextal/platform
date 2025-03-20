@@ -1,8 +1,9 @@
 use crate::{
+    OoxmlError, ParserState, ProcessingSummary,
     archive::{self, Archive},
     drawing::Drawing,
     relationship::{FileToProcess, Relationship, RelationshipType, TargetMode},
-    xml, OoxmlError, ParserState, ProcessingSummary,
+    xml,
 };
 use convert_case::{Case, Casing};
 use std::{
@@ -276,13 +277,13 @@ impl<R: Read + Seek> Wordprocessing<R> {
                         })?;
                         match evt {
                             XmlEvent::StartElement { name, .. } if name.local_name == "body" => {
-                                break
+                                break;
                             }
                             XmlEvent::StartElement { .. } => {
                                 self.parser.skip()?;
                             }
                             XmlEvent::EndElement { .. } | XmlEvent::EndDocument => {
-                                return Err("Element <body> not found".into())
+                                return Err("Element <body> not found".into());
                             }
                             _ => {}
                         }

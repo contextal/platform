@@ -245,8 +245,9 @@ VGhlIGV1cm8gc2lnbjogpA==
     assert!(!dumped_part.unsupported_charset);
     assert!(!dumped_part.has_text_decoder_errors);
 
-    assert!(mail
-        .dump_current_part(&mut std::io::sink(), SIZE_LIMIT, SIZE_LIMIT)?
-        .is_none());
+    assert!(
+        mail.dump_current_part(&mut std::io::sink(), SIZE_LIMIT, SIZE_LIMIT)?
+            .is_none()
+    );
     Ok(())
 }

@@ -1,4 +1,4 @@
-use crate::{config::Config, error::UrlBackendError, BackendResultSymbols, ChildType, Guid, Url};
+use crate::{BackendResultSymbols, ChildType, Guid, Url, config::Config, error::UrlBackendError};
 use backend_utils::objects::BackendResultChild;
 use chromiumoxide::cdp::browser_protocol::browser::DownloadProgressState;
 use serde::Serialize;

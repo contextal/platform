@@ -1,5 +1,5 @@
 //! Shared utility functions
-use rand::distributions::{Alphanumeric, DistString};
+use rand::distr::{Alphanumeric, SampleString};
 #[allow(unused_imports)]
 use tracing::{debug, error, info, warn};
 
@@ -26,7 +26,7 @@ pub async fn read_all(
 // FIXME: how random is random?
 /// Generates a random alphanumeric [`String`] of the given length
 pub fn random_string(len: usize) -> String {
-    Alphanumeric.sample_string(&mut rand::thread_rng(), len)
+    Alphanumeric.sample_string(&mut rand::rng(), len)
 }
 
 /// Utility fn to retrieve the proper request queue for a given object type

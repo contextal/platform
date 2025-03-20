@@ -84,7 +84,7 @@ fn process_request(
             if e.kind() == std::io::ErrorKind::InvalidData
                 || e.kind() == std::io::ErrorKind::UnexpectedEof =>
         {
-            return Ok(BackendResultKind::error(format!("Invalid data ({})", e)))
+            return Ok(BackendResultKind::error(format!("Invalid data ({})", e)));
         }
         Err(e) => return Err(e),
     };
@@ -116,7 +116,7 @@ fn process_request(
             Ok(v) => v,
             Err(e) => match e.kind() {
                 std::io::ErrorKind::InvalidData | std::io::ErrorKind::UnexpectedEof => {
-                    return Ok(BackendResultKind::error(format!("Invalid data ({})", e)))
+                    return Ok(BackendResultKind::error(format!("Invalid data ({})", e)));
                 }
                 _ => return Err(e),
             },

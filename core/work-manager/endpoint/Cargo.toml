@@ -22,6 +22,6 @@ futures = { workspace = true }
 tokio-postgres = { workspace = true }
 pgrules = { workspace = true }
 actix-web = "4"
-actix-multipart = "0.6"
-deadpool-postgres = "0.12.1"
+actix-multipart = "0.7"
+deadpool-postgres = "0.14.1"
 tokio-util = { version = "0.7.10", features = [ "io" ] }

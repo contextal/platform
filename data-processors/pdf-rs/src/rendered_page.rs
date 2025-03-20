@@ -1,4 +1,4 @@
-use crate::{config::Config, ChildType, PageWithIndex, PdfBackendError};
+use crate::{ChildType, PageWithIndex, PdfBackendError, config::Config};
 use backend_utils::objects::BackendResultChild;
 use image::DynamicImage;
 use pdfium_render::prelude::*;

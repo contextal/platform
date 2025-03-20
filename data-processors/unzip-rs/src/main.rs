@@ -111,7 +111,7 @@ fn process_request(
         Ok(v) => v,
         Err(e) => match e.kind() {
             std::io::ErrorKind::InvalidData | std::io::ErrorKind::UnexpectedEof => {
-                return Ok(BackendResultKind::error(format!("invalid Zip file: {e}")))
+                return Ok(BackendResultKind::error(format!("invalid Zip file: {e}")));
             }
             _ => return Err(e.into()),
         },
@@ -151,7 +151,7 @@ fn process_request(
                 std::io::ErrorKind::InvalidData | std::io::ErrorKind::UnexpectedEof => {
                     return Ok(BackendResultKind::error(format!(
                         "Invalid Zip file entry {idx}: {e}"
-                    )))
+                    )));
                 }
                 _ => return Err(format!("Failed to read entry #{idx}: {e}").into()),
             },

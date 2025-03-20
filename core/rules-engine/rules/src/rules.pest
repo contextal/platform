@@ -8,17 +8,66 @@ ident_string = {
     | "object_type"
     | "object_subtype"
 }
+ident_string_object_type = { "object_type" }
 ident_number = {
     "recursion_level"
     | "size"
     | "entropy"
 }
 
+
 op = { equals | compares }
 compares = { "<=" | ">=" | ">" | "<" }
 equals = { "==" | "=" | "<>" | "!=" }
 
+in_operator = { logic_not? ~ ^"in" }
+in_statement_selector = { in_operator ~ variable_selector }
+in_statement_number = { in_operator ~ "(" ~ (number | variable_number) ~ ("," ~ (number | variable_number))* ~ ")" }
+in_statement_string = { in_operator ~ "(" ~ (constant_string | variable_string) ~ ("," ~ (constant_string | variable_string))* ~ ")" }
+in_statement_string_object_type = { in_operator ~ "(" ~ (constant_string_object_type | variable_string) ~ ("," ~ (constant_string_object_type | variable_string))* ~ ")" }
+in_statement_string_extended_entry = _{
+    string
+    | variable_string
+    | func_arg_regex
+    | func_arg_iregex
+    | func_arg_starts_with
+}
+in_statement_string_extended = { ^"in" ~ "(" ~ in_statement_string_extended_entry ~ ("," ~ in_statement_string_extended_entry)* ~ ")" }
+in_statement_string_symbol_entry = _{
+    string_symbol
+    | variable_string
+    | func_arg_regex
+    | func_arg_iregex
+    | func_arg_starts_with
+}
+in_statement_string_symbol = { ^"in" ~ "(" ~ in_statement_string_symbol_entry ~ ("," ~ in_statement_string_symbol_entry)* ~ ")" }
+in_statement_jsonpath_entry = _{
+    string
+    | variable_json
+    | number
+    | bool
+    | jsonpath_path_simple
+    | func_arg_regex
+    | func_arg_iregex
+    | func_arg_starts_with
+}
+in_statement_jsonpath = { ^"in" ~ "(" ~ in_statement_jsonpath_entry ~ ("," ~ in_statement_jsonpath_entry)* ~ ")" }
+in_statement_jsonpath_object_entry = _{
+    string
+    | variable_json
+    | number
+    | bool
+    | jsonpath_object_match_id
+    | func_arg_regex
+    | func_arg_iregex
+    | func_arg_starts_with
+}
+in_statement_jsonpath_object = { ^"in" ~ "(" ~ in_statement_jsonpath_object_entry ~ ("," ~ in_statement_jsonpath_object_entry)* ~ ")" }
+
 string = { string_regular | string_raw }
+string_symbol = ${ string_regular | string_raw }
+constant_string = { string }
+constant_string_object_type = ${ string_regular | string_raw }
 
 string_regular = { "\"" ~ string_regular_value ~ "\"" }
 string_regular_value = ${ char* }
@@ -50,15 +99,16 @@ jsonpath_match_simple = _{ jsonpath_path_simple ~
         | func_arg_starts_with
         | jsonpath_match_length
         | jsonpath_object_match
+        | in_statement_jsonpath
+        | in_statement_selector
     ) }
-jsonpath_match_simple_equals = _{jsonpath_equals ~ (string | variable | number | bool | jsonpath_path_simple)}
-func_arg_regex = { "regex" ~ "(" ~ ( string | variable ) ~ ")" }
-func_arg_iregex = { "iregex" ~ "(" ~ ( string | variable ) ~ ")" }
-func_arg_starts_with = { "starts_with" ~ "(" ~ ( string | variable ) ~ ")" }
-jsonpath_match_simple_compares = _{compares ~ (number | variable | jsonpath_path_simple)}
-jsonpath_equals = ${ "==" | "!=" | "<>" }
-jsonpath_match_length = {".len()" ~ op ~ (jsonpath_unsigned | variable ) }
-jsonpath_unsigned = { ASCII_DIGIT+ }
+jsonpath_match_simple_equals = _{jsonpath_equals ~ (string | variable_json | number | bool | jsonpath_path_simple)}
+func_arg_regex = { "regex" ~ "(" ~ ( string | variable_string ) ~ ")" }
+func_arg_iregex = { "iregex" ~ "(" ~ ( string | variable_string ) ~ ")" }
+func_arg_starts_with = { "starts_with" ~ "(" ~ ( string | variable_string ) ~ ")" }
+jsonpath_match_simple_compares = _{compares ~ (number | variable_string | jsonpath_path_simple)}
+jsonpath_equals = ${ "==" | "=" | "!=" | "<>" }
+jsonpath_match_length = {".len()" ~ op ~ (unsigned_integer | variable_number ) }
 
 jsonpath_object_match = { "?" ~ jsonpath_object_match_condition_node }
 jsonpath_object_match_condition = _{ jsonpath_object_match_condition_simple | jsonpath_object_match_condition_node }
@@ -70,14 +120,16 @@ jsonpath_object_match_condition_simple = {
         | func_arg_regex
         | func_arg_iregex
         | func_arg_starts_with
+        | in_statement_jsonpath_object
 	)
 }
 jsonpath_object_match_condition_node = { "(" ~ jsonpath_object_match_condition ~ (glue ~ jsonpath_object_match_condition)* ~ ")" }
-jsonpath_object_match_equals = { jsonpath_equals ~ (string | variable | number | bool | jsonpath_object_match_id) }
-jsonpath_object_match_compares = { compares ~ (number | variable | jsonpath_object_match_id) }
+jsonpath_object_match_equals = { jsonpath_equals ~ (string | variable_json | number | bool | jsonpath_object_match_id) }
+jsonpath_object_match_compares = { compares ~ (number | variable_number | jsonpath_object_match_id) }
 
 number = @{ integer ~ ("." ~ ASCII_DIGIT+)? ~ (^"e" ~ integer)? }
 integer = @{ ("+" | "-")? ~ ASCII_DIGIT+ }
+unsigned_integer = ${ ASCII_DIGIT+ }
 bool = { "true" | "false" }
 
 clam_pattern = ${  (clam_offset ~ ":")? ~ ( clam_hex_signature | string ) }
@@ -129,8 +181,26 @@ clam_pcre = { "/" ~ (clam_pcre_set | ("\\/" | !"/" ~ ANY ) )* ~ "/" }
 */
 
 get_hash_fn = !{ "get_hash" ~ "(" ~ string ~ ")" }
-has_symbol_fn = !{ "has_symbol" ~ "(" ~ (string | variable | func_arg_regex | func_arg_iregex | func_arg_starts_with) ~ ")" }
-has_name_fn = !{ "has_name" ~ "(" ~ (string | variable | func_arg_regex | func_arg_iregex | func_arg_starts_with) ~ ")" }
+has_symbol_fn = !{
+    "has_symbol" ~ "(" ~ (
+        string_symbol
+        | variable_string
+        | func_arg_regex
+        | func_arg_iregex
+        | func_arg_starts_with
+        | in_statement_string_symbol
+        | in_statement_selector
+    ) ~ ")" }
+has_name_fn = !{
+    "has_name" ~ "(" ~ (
+        string
+        | variable_string
+        | func_arg_regex
+        | func_arg_iregex
+        | func_arg_starts_with
+        | in_statement_string_extended
+        | in_statement_selector
+    ) ~ ")" }
 has_descendant_fn = !{ "has_descendant" ~ "(" ~ node ~ ("," ~ integer)? ~ ")" }
 has_ancestor_fn = !{ "has_ancestor" ~ "(" ~ node ~ ("," ~ integer)? ~ ")" }
 has_child_fn = !{ "has_child" ~ "(" ~ node ~ ")" }
@@ -141,32 +211,90 @@ has_object_meta_fn = !{ "has_object_meta" ~ "(" ~ jsonpath_path_simple ~ ")" }
 has_relation_meta_fn = !{ "has_relation_meta" ~ "(" ~ jsonpath_path_simple ~ ")" }
 match_object_meta_fn = !{ "match_object_meta" ~ "(" ~ jsonpath_match_simple ~ ")" }
 match_relation_meta_fn = !{ "match_relation_meta" ~ "(" ~ jsonpath_match_simple ~ ")" }
-date_range_fn = !{ "date_range" ~ "(" ~ ( date_string | variable ) ~ "," ~ ( date_string | variable ) ~ ")" }
-date_since_fn = !{ "date_since" ~ "(" ~ ( date_string | variable ) ~ ")" }
+date_range_fn = !{ "date_range" ~ "(" ~ ( date_string | variable_date ) ~ "," ~ ( date_string | variable_date ) ~ ")" }
+date_since_fn = !{ "date_since" ~ "(" ~ ( date_string | variable_date ) ~ ")" }
 count_ancestors_fn = !{ "count_ancestors" ~ "(" ~ (node ~ ("," ~ integer)?)? ~ ")" }
 count_descendants_fn = !{ "count_descendants" ~ "(" ~ (node ~ ("," ~ integer)?)? ~ ")" }
 count_children_fn = !{ "count_children" ~ "(" ~ node? ~ ")" }
 count_siblings_fn = !{ "count_siblings" ~ "(" ~ node? ~ ")" }
-has_error_fn = !{ "has_error" ~ "(" ~( string | variable | func_arg_regex | func_arg_iregex | func_arg_starts_with )? ~ ")"}
+has_error_fn = !{ "has_error" ~ "(" ~( string | variable_string | func_arg_regex | func_arg_iregex | func_arg_starts_with )? ~ ")"}
 is_root_fn = !{ "is_root()" }
 is_leaf_fn = !{ "is_leaf()" }
-match_pattern_fn = !{ "match_pattern" ~ "(" ~ ( variable | clam_pattern ) ~ ")" }
+match_pattern_fn = !{ "match_pattern" ~ "(" ~ ( variable_clam_pattern | clam_pattern ) ~ ")" }
+count_conditions_fn = !{"count_conditions" ~ "(" ~ node ~ ("," ~ node)* ~ ")" }
 
 variable = ${ "${" ~ ((ASCII_ALPHA | "_") ~ (ASCII_ALPHANUMERIC | "_")*) ~"}" }
-variable_bool = { bool }
-variable_number = { number }
-variable_string = { string }
-variable_date = { "datetime" ~ "(" ~ date_string ~ ")" }
-variable_clam_pattern = { "pattern" ~ "(" ~ clam_pattern ~ ")"}
+variable_bool = ${ "${" ~ ((ASCII_ALPHA | "_") ~ (ASCII_ALPHANUMERIC | "_")*) ~"}" }
+variable_number = ${ "${" ~ ((ASCII_ALPHA | "_") ~ (ASCII_ALPHANUMERIC | "_")*) ~"}" }
+variable_string = ${ "${" ~ ((ASCII_ALPHA | "_") ~ (ASCII_ALPHANUMERIC | "_")*) ~"}" }
+variable_date = ${ "${" ~ ((ASCII_ALPHA | "_") ~ (ASCII_ALPHANUMERIC | "_")*) ~"}" }
+variable_clam_pattern = ${ "${" ~ ((ASCII_ALPHA | "_") ~ (ASCII_ALPHANUMERIC | "_")*) ~"}" }
+variable_json = ${ "${" ~ ((ASCII_ALPHA | "_") ~ (ASCII_ALPHANUMERIC | "_")*) ~"}" }
+variable_selector = ${ "${" ~ ((ASCII_ALPHA | "_") ~ (ASCII_ALPHANUMERIC | "_")*) ~"}" }
+
+variable_value_bool = { bool }
+variable_value_number = { number }
+variable_value_string = { string }
+variable_value_date = { "datetime" ~ "(" ~ date_string ~ ")" }
+variable_value_clam_pattern = { "pattern" ~ "(" ~ clam_pattern ~ ")"}
 variable_value = {
-    variable_bool
-    | variable_number
-    | variable_string
-    | variable_date
-    | variable_clam_pattern
+    variable_value_bool
+    | variable_value_number
+    | variable_value_string
+    | variable_value_date
+    | variable_value_clam_pattern
 }
 variable_definition = { variable ~ "=" ~ variable_value ~ ";"}
+variable_value_global = {
+    variable_value_bool
+    | variable_value_number
+    | variable_value_string
+    | variable_value_date
+    | variable_value_clam_pattern
+    | variable_value_selector
+}
+variable_definition_global = { variable ~ "=" ~ variable_value_global ~ ";"}
 
+variable_value_selector = { "LOCAL" ~ variable_value_selector_filter? ~ "." ~ variable_value_selector_get}
+variable_value_selector_filter = { "." ~ "filter" ~ "(" ~ node ~ ")" }
+variable_value_selector_get = {
+    ident_bool
+    | ident_number
+    | ident_string
+    | get_symbols_fn
+    | get_names_fn
+    | get_object_meta_fn
+    | get_relation_meta_fn
+}
+
+global_query_settings = { global_query_setting* }
+global_query_setting = _{
+    ( gqs_matches
+    | gqs_time_window
+    | gqs_max_neighbors ) ~ ";"
+}
+
+gqs_matches = { "MATCHES:" ~ gqs_matches_value }
+gqs_matches_value = @{ "NONE" | ((">"|"<") ~ unsigned_integer ~ "%"?) }
+gqs_time_window = { "TIME_WINDOW:" ~ gqs_time_window_value }
+gqs_time_window_value = ${ unsigned_integer ~ WHITESPACE* ~ gqs_time_window_unit ~ (WHITESPACE+ ~ unsigned_integer ~ WHITESPACE* ~ gqs_time_window_unit)* }
+gqs_time_window_unit = @{
+    (
+        "year"
+        | "month"
+        | "week"
+        | "day"
+        | "hour"
+        | "minute"
+    ) ~ "s"?
+}
+gqs_max_neighbors = { "MAX_NEIGHBORS:" ~ gqs_max_neighbors_value }
+gqs_max_neighbors_value = @{ unsigned_integer }
+
+get_symbols_fn = { "get_symbols()" }
+get_names_fn = { "get_names()" }
+get_object_meta_fn = { "get_object_meta(" ~ jsonpath_path_simple ~ ")" }
+get_relation_meta_fn = { "get_relation_meta(" ~ jsonpath_path_simple ~ ")" }
 
 functions = { functions_bool | functions_string | functions_number}
 functions_bool = ${ "@" ~ (
@@ -197,24 +325,47 @@ functions_number = ${ "@" ~ (
     | count_descendants_fn
     | count_children_fn
     | count_siblings_fn
+    | count_conditions_fn
 )}
 
 cond = {
-    (functions_bool | ident_bool) ~ equals ~ (bool | ident_bool | variable) |
-    (functions_string | ident_string) ~ equals ~ (constant_string | ident_string | functions_string | variable) |
-    (functions_number | ident_number) ~ op ~ (number | ident_number | functions_number | variable) |
-    functions_bool | ident_bool | bool
+    (functions_bool | ident_bool) ~ equals ~ (bool | ident_bool | variable_bool)
+    |
+        ident_string_object_type ~
+        (
+            equals ~ (constant_string_object_type | ident_string | functions_string | variable_string)
+            | in_statement_string_object_type
+            | in_statement_selector
+        )
+    |
+        (functions_string | ident_string) ~
+        (
+            equals ~ (constant_string | ident_string | functions_string | variable_string)
+            | in_statement_string
+            | in_statement_selector
+        )
+    |
+        (functions_number | ident_number) ~ (op ~ (number | ident_number | functions_number | variable_number)
+        | in_statement_number
+        | in_statement_selector)
+    | functions_bool | ident_bool | bool
 }
-constant_string = { string }
 
-logic_or = { "||" | ^"or" }
-logic_and = { "&&" | ^"and" }
+logic_and = ${ (^"and" ~ (WHITESPACE+|!ASCII_ALPHANUMERIC)) | "&&" }
+logic_or = ${ (^"or" ~ (WHITESPACE+|!ASCII_ALPHANUMERIC)) | "||" }
+logic_not = ${ (^"not" ~ (WHITESPACE+|!ASCII_ALPHANUMERIC) ) | "!" }
 glue = { logic_and | logic_or }
 
-logic_not = { (^"not"~!ASCII_ALPHANUMERIC ) | "!" }
 node_primary = _{ logic_not? ~ (cond | "(" ~ node ~ ")") }
 node = { node_primary ~ ( glue ~ node_primary )* }
-rule = { SOI ~ variable_definition* ~ node ~ EOI }
+rule_variables = { variable_definition* }
+rule_variables_global = { variable_definition_global* }
+rule_body = { rule_variables ~ node  }
+rule_body_partial = { rule_variables ~ node?  }
+rule_body_partial_global = { global_query_settings ~ rule_variables_global ~ node?  }
+rule_body_global = { global_query_settings ~ rule_variables_global ~ node }
+rule_global = { SOI ~ rule_body_global ~ EOI }
+rule = { SOI ~ rule_body ~ EOI }
 
 WHITESPACE = _{ " "|"\n"|"\t" }
 COMMENT = @{ ("//" ~ (!"\n" ~ ANY)*) | ("/*" ~ (!"*/" ~ ANY)* ~ "*/") }

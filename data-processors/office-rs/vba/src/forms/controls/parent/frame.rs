@@ -1,6 +1,6 @@
 pub mod multipage;
-use crate::forms::controls::*;
 use crate::Ole;
+use crate::forms::controls::*;
 use std::fmt;
 use std::io::{self, Read, Seek};
 

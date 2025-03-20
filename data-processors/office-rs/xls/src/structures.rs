@@ -1,7 +1,7 @@
 //! Excel structures
 use super::{
-    records::from_record::{Anomalies, FromRecordStream},
     ExcelError, RecordStream,
+    records::from_record::{Anomalies, FromRecordStream},
 };
 use ctxutils::cmp::Unsigned as _;
 use ctxutils::win32::GUID;
@@ -886,14 +886,14 @@ impl FtPioGrbit {
 
         let misc = stream.rdu16()?;
         let f_auto_pict = misc & 1 != 0;
-        let f_dde = misc & 1 << 1 != 0;
-        let f_print_calc = misc & 1 << 2 != 0;
-        let f_icon = misc & 1 << 3 != 0;
-        let f_ctl = misc & 1 << 4 != 0;
-        let f_prstm = misc & 1 << 5 != 0;
-        let f_camera = misc & 1 << 7 != 0;
-        let f_default_size = misc & 1 << 8 != 0;
-        let f_auto_load = misc & 1 << 9 != 0;
+        let f_dde = misc & (1 << 1) != 0;
+        let f_print_calc = misc & (1 << 2) != 0;
+        let f_icon = misc & (1 << 3) != 0;
+        let f_ctl = misc & (1 << 4) != 0;
+        let f_prstm = misc & (1 << 5) != 0;
+        let f_camera = misc & (1 << 7) != 0;
+        let f_default_size = misc & (1 << 8) != 0;
+        let f_auto_load = misc & (1 << 9) != 0;
 
         Ok(Self {
             f_auto_load,
@@ -1014,9 +1014,9 @@ impl FtSbs {
         let dx_scroll = stream.rdi16()?;
         let misc = stream.rdu16()?;
         let f_draw = misc & 1 != 0;
-        let f_draw_slider_only = misc & 1 << 1 != 0;
-        let f_track_elevator = misc & 1 << 2 != 0;
-        let f_no3d = misc & 1 << 3 != 0;
+        let f_draw_slider_only = misc & (1 << 1) != 0;
+        let f_track_elevator = misc & (1 << 2) != 0;
+        let f_no3d = misc & (1 << 3) != 0;
 
         Ok(Self {
             d_inc,

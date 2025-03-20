@@ -304,7 +304,7 @@ impl<W: Write> TextDecoder<W> {
 
 impl<W: Write> Write for TextDecoder<W> {
     fn write(&mut self, src: &[u8]) -> Result<usize, std::io::Error> {
-        if let Some(ref mut decoder) = &mut self.decoder {
+        if let Some(decoder) = &mut self.decoder {
             let mut src = src;
             while !src.is_empty() {
                 let (inlen, outlen) = decoder.decode(src, &mut self.buf);
@@ -318,7 +318,7 @@ impl<W: Write> Write for TextDecoder<W> {
     }
 
     fn flush(&mut self) -> Result<(), std::io::Error> {
-        if let Some(ref mut decoder) = &mut self.decoder {
+        if let Some(decoder) = &mut self.decoder {
             let outlen = decoder.flush(&mut self.buf).unwrap();
             self.w.write_all(&self.buf[0..outlen])?;
             if decoder.has_repl {

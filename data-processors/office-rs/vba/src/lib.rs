@@ -310,7 +310,7 @@ impl<'a, R: Read + Seek> Vba<'a, R> {
                 return Err(io::Error::new(
                     io::ErrorKind::InvalidData,
                     "This module doesn't have an offset",
-                ))
+                ));
             }
         };
         let entry = self.get_module_entry(module)?;

@@ -359,7 +359,7 @@ impl ELFHeader {
                 return Err(std::io::Error::new(
                     std::io::ErrorKind::InvalidData,
                     "Invalid class specification",
-                ))
+                ));
             }
         };
         if e_ident[5] == 2 {
@@ -696,7 +696,7 @@ fn get_section_names<R: Read + Seek>(
                 return Err(std::io::Error::new(
                     std::io::ErrorKind::InvalidData,
                     "Invalid section name",
-                ))
+                ));
             }
         };
         names.push(name);

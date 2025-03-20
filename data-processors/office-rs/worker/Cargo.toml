@@ -4,10 +4,9 @@ edition.workspace = true
 version.workspace = true
 homepage = { workspace = true }
 license = { workspace = true }
-rust-version = { workspace = true }
 
 [dependencies]
-backend-utils = { branch = "master", git = "ssh://git@gitlab.dev.contextal.com:2022/processing-engine/backends/libs-rs/backend-utils.git" }
+backend-utils = { path = "../../../libs/backend-utils" }
 ctxutils = { workspace = true, features = ["win32"] }
 ctxole = { workspace = true }
 xls = { path = "../xls" }

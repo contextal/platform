@@ -298,7 +298,7 @@ impl<R: Read + Seek> Zip<R> {
             if z64eocd.disk_number != loc.z64_eocd_first_disk {
                 return Err(std::io::Error::new(
                     std::io::ErrorKind::InvalidData,
-                    "Zip64 end of central directory and its locator do not agree on this disk number"
+                    "Zip64 end of central directory and its locator do not agree on this disk number",
                 ));
             }
             if z64eocd.cd_first_disk != z64eocd.disk_number {
@@ -1080,7 +1080,7 @@ impl<R: Read + Seek> Entry<R> {
                 return Err(std::io::Error::new(
                     std::io::ErrorKind::Other,
                     format!("Unsupported method {other}"),
-                ))
+                ));
             }
         };
 

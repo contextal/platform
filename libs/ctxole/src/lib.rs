@@ -367,7 +367,7 @@ impl<R: Read + Seek> OleCore<R> {
                 return Err(io::Error::new(
                     io::ErrorKind::InvalidData,
                     format!("Invalid sector size {}", 1 << tmp16),
-                ))
+                ));
             }
         };
 
@@ -554,7 +554,7 @@ impl<R: Read + Seek> OleCore<R> {
                     return Err(io::Error::new(
                         io::ErrorKind::InvalidData,
                         format!("Found DIFAT sector with special offset 0x{:x}", v),
-                    ))
+                    ));
                 }
                 FREESECT => return Ok(true),
                 _ => {
@@ -734,14 +734,19 @@ impl<R: Read + Seek> OleCore<R> {
                 Err(0) => {
                     return Err(io::Error::new(
                         io::ErrorKind::InvalidData,
-                        format!("Cannot find sector {} in FAT chain starting at {}: out of FAT after {} steps", nsec, first, i)
+                        format!(
+                            "Cannot find sector {} in FAT chain starting at {}: out of FAT after {} steps",
+                            nsec, first, i
+                        ),
                     ));
                 }
                 Err(e) => {
                     return Err(io::Error::new(
                         io::ErrorKind::InvalidData,
-                        format!("Cannot find sector {} in FAT chain starting at {}: found special sector 0x{:x} after {} steps",
-                                nsec, first, e, i)
+                        format!(
+                            "Cannot find sector {} in FAT chain starting at {}: found special sector 0x{:x} after {} steps",
+                            nsec, first, e, i
+                        ),
                     ));
                 }
             }

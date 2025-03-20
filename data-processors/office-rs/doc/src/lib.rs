@@ -13,7 +13,7 @@
 // TODO: extract images, tables, fields, embedded xml, embedded ole
 pub mod dop;
 
-use ctxole::{crypto, Encryption, NoValidPasswordError, Ole, OleStreamReader};
+use ctxole::{Encryption, NoValidPasswordError, Ole, OleStreamReader, crypto};
 use ctxutils::{cmp::*, io::*};
 use std::convert::TryInto;
 use std::fmt::Debug;

@@ -1,6 +1,6 @@
 use config::Config;
 use libc::{setlocale, LC_ALL};
-use nt_time::{error::OffsetDateTimeRangeError, FileTime};
+use nt_time::FileTime;
 use raw::RARHeaderDataEx;
 use scopeguard::ScopeGuard;
 use serde::{ser::Error, Serialize, Serializer};
@@ -374,7 +374,7 @@ impl ArchiveHandler {
     /// The `msg` argument represents a reason of invocation, `user_data` is the pointer we
     /// supplied to `libunrar` when we were opening the archive. And the rest of parameters change
     /// their meaning depending on the message.
-    #[no_mangle]
+    #[unsafe(no_mangle)]
     pub extern "C" fn callback(
         msg: c_uint,
         user_data: c_long,
@@ -1186,7 +1186,7 @@ impl From<u64> for WindowsFiletimeRaw {
 }
 
 impl TryFrom<WindowsFiletimeRaw> for OffsetDateTime {
-    type Error = OffsetDateTimeRangeError;
+    type Error = time::error::ComponentRange;
 
     fn try_from(value: WindowsFiletimeRaw) -> Result<Self, Self::Error> {
         Self::try_from(FileTime::NT_TIME_EPOCH.saturating_add(Duration::from_micros(value.0 / 10)))

@@ -35,7 +35,7 @@ fn create_work_001() -> Work {
         None,
         5_000,
         json!({"md5":"65cab523e0f9880cfea5eecf521d9782", "sha1":"68c4f983ffed3a3492b1e429fc14aa92978f38a2", "sha256":"4d55c8e23e68f5335ba5bff0a415c288da0103a30bbd833a41ca46bd026d41c3"}),
-        json!({ "ok": { "symbols" : [], "object_metadata": {"test_escaping":"\u{1F332}\u{1F333}\u{1F334}"} }}),
+        json!({ "ok": { "symbols" : ["A","B"], "object_metadata": {"test_escaping":"\u{1F332}\u{1F333}\u{1F334}"} }}),
     );
     let mut object_004 = Object::new(
         "object_001_004",
@@ -55,16 +55,16 @@ fn create_work_001() -> Work {
     );
 
     object_004.append_child(object_005, json!({}));
-    object_001.append_child(object_002, json!({"name": "evil.dll"}));
-    object_001.append_child(object_003, json!({"name": "evil.link"}));
-    object_001.append_child(object_004, json!({"name": "index.html"}));
+    object_001.append_child(object_002, json!({"name": "evil.dll", "x": [1,2,3]}));
+    object_001.append_child(object_003, json!({"name": "evil.link", "x": "y"}));
+    object_001.append_child(object_004, json!({"name": "index.html", "x": {}}));
 
     Work::new(
         "work_001",
         "my_org",
         datetime!(2000-01-01 01:00:00),
         object_001,
-        json!({"name":"archive.zip", "nested": {"key":"value"}}),
+        json!({"name":"archive.zip", "names": ["sample5"], "nested": {"key":"value"}}),
     )
 }
 
@@ -91,7 +91,7 @@ fn create_work_002() -> Work {
         Some("PNG"),
         300_000,
         json!({"md5":"ebb125b2c66b8c7005594e781ecdfcd5", "sha1":"4f3e6d5bdcdab30159c2fce95c2d4b7504421b26", "sha256":"5f06d88eace76e4e327758a1cf6979b7a92bb7b1056d2125c87c9e665a08c0b6"}),
-        json!({ "ok": { "symbols" : [], "object_metadata": {} }}),
+        json!({ "ok": { "symbols" : ["B", "C"], "object_metadata": {} }}),
     );
     let object_004 = Object::new(
         "object_002_004",
@@ -198,7 +198,7 @@ fn create_work_003() -> Work {
         None,
         555_555,
         json!({"md5":"b9af3a9e0d505c6abad01dd2c83ee4fc", "sha1":"80c0924aaaea982e29850d23b7f16ff4ddd280a9", "sha256":"b980e84a70cef9659d6a2f65f02edcfd9cd8af3a271bb5c26013e4f9f39b5eb8"}),
-        json!({ "ok": { "symbols" : [], "object_metadata": {} }}),
+        json!({ "ok": { "symbols" : ["A"], "object_metadata": {} }}),
     );
     let mut object_008 = Object::new(
         "object_003_008",
@@ -206,7 +206,7 @@ fn create_work_003() -> Work {
         None,
         1_234,
         json!({"md5":"6c8c75865177374b2c0581825606ecc6", "sha1":"b7962137cd69017b9a27e8eaac689c2f9ccb9fde", "sha256":"98c8bfbfad1b1e81e814e7800ea68ea8e05ac1bd652228c0213d8c8710a4f06c"}),
-        json!({ "ok": { "symbols" : [], "object_metadata": {"int1":1, "int2":1, "bool": true, "string": "string", "array": [1,2,3]} }}),
+        json!({ "ok": { "symbols" : ["B"], "object_metadata": {"int1":1, "int2":1, "bool": true, "string": "string", "array": [1,2,3]} }}),
     );
     let object_009 = Object::new(
         "object_003_009",
@@ -214,7 +214,7 @@ fn create_work_003() -> Work {
         None,
         1_000,
         json!({"md5":"d517c3ed7b2ae9292fe99b135183fb21", "sha1":"1cb6af4e53e459dfc46292f2d7c0c20587e6664b", "sha256":"9ab0ab904d67487ab7404dc6f7c00c92a08c82d1e566aef4f641dfd4d6fe2e4d"}),
-        json!({ "ok": { "symbols" : [], "object_metadata": {} }}),
+        json!({ "ok": { "symbols" : ["C"], "object_metadata": {} }}),
     );
     let object_010 = Object::new(
         "object_003_010",
@@ -251,7 +251,7 @@ fn create_work_003() -> Work {
     object_002.append_child(object_003, json!({"name": "sample1", "nested": {"key":1}}));
     object_002.append_child(object_004, json!({"name": "sample2"}));
     object_002.append_child(object_005, json!({"name": "sample3"}));
-    object_002.append_child(object_006, json!({"name": "sample4"}));
+    object_002.append_child(object_006, json!({"name": "sample4", "x": [1,2,3]}));
     object_002.append_child(object_007, json!({"name": "sample5"}));
     object_008.append_child(object_009, json!({"name": "README"}));
     object_008.append_child(
@@ -318,7 +318,7 @@ fn create_work_004() -> Work {
     );
     object_001.append_child(object_002, json!({"name": "mario.EXE"}));
     object_001.append_child(object_003, json!({"name": "mario.dll"}));
-    object_001.append_child(object_004, json!({"name": "assets.png"}));
+    object_001.append_child(object_004, json!({"name": "assets.png", "x":"y"}));
     object_001.append_child(
         object_005,
         json!({"name": "data.bin", "nested": {"key":null}}),
@@ -347,7 +347,7 @@ fn create_work_005() -> Work {
         "one\ttwo\nthree",
         datetime!(2000-01-05 01:00:00),
         object_001,
-        json!({"name":"broken.7z"}),
+        json!({"name":"broken.7z", "names": ["README"], "x": {}}),
     )
 }
 

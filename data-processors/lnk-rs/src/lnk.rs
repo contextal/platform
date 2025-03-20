@@ -9,7 +9,7 @@ use self::{
     link_target_id_list::{LinkTargetIDList, ReadLinkTargetIDList},
     shell_link_header::{LinkFlags, ReadShellLinkHeader, ShellLinkHeader},
 };
-use byteorder::{ReadBytesExt, LE};
+use byteorder::{LE, ReadBytesExt};
 use ctxole::oleps::{CodepageString, UnicodeString};
 use serde::{Serialize, Serializer};
 use std::{

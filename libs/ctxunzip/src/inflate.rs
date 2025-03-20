@@ -4,18 +4,20 @@ use std::io::Read;
 unsafe fn make_zstream() -> Result<Box<libz_sys::z_stream>, std::io::Error> {
     let arr: [u8; std::mem::size_of::<libz_sys::z_stream>()] =
         [0; std::mem::size_of::<libz_sys::z_stream>()];
-    let mut z: Box<libz_sys::z_stream> = Box::new(std::mem::transmute(arr));
+    let mut z: Box<libz_sys::z_stream> = Box::new(unsafe { std::mem::transmute(arr) });
     // Note: z_stream contains two nullable function pointers (zalloc and zfree) which
     // rustc will not tolerate
     // Array transmutation is used here in place of MayeUninit::zeroed() so the compiler
     // won't notice
 
-    let zres = libz_sys::inflateInit2_(
-        z.as_mut(),
-        -15,
-        "1.2.13".as_ptr() as _,
-        std::mem::size_of::<libz_sys::z_stream>() as i32,
-    );
+    let zres = unsafe {
+        libz_sys::inflateInit2_(
+            z.as_mut(),
+            -15,
+            "1.2.13".as_ptr() as _,
+            std::mem::size_of::<libz_sys::z_stream>() as i32,
+        )
+    };
     match zres {
         libz_sys::Z_OK => {}
         libz_sys::Z_MEM_ERROR => {
@@ -105,7 +107,7 @@ impl<R: Read> InflateStream<R> {
                     return Err(std::io::Error::new(
                         std::io::ErrorKind::InvalidData,
                         "Deflate stream requires dictionary",
-                    ))
+                    ));
                 }
                 libz_sys::Z_DATA_ERROR => {
                     return Err(std::io::Error::new(
@@ -119,25 +121,25 @@ impl<R: Read> InflateStream<R> {
                     return Err(std::io::Error::new(
                         std::io::ErrorKind::InvalidInput,
                         "Zlib internal error: Deflate stream error",
-                    ))
+                    ));
                 }
                 libz_sys::Z_MEM_ERROR => {
                     return Err(std::io::Error::new(
                         std::io::ErrorKind::OutOfMemory,
                         "Not enough memory to inflate Deflate stream",
-                    ))
+                    ));
                 }
                 libz_sys::Z_BUF_ERROR => {
                     return Err(std::io::Error::new(
                         std::io::ErrorKind::InvalidInput,
                         "Zlib internal error: buffer error when inflating the stream",
-                    ))
+                    ));
                 }
                 e => {
                     return Err(std::io::Error::new(
                         std::io::ErrorKind::InvalidInput,
                         format!("Zlib internal error: unexpected inflate result ({})", e),
-                    ))
+                    ));
                 }
             }
             if zres == libz_sys::Z_STREAM_END {

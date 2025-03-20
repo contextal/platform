@@ -3,11 +3,11 @@ use super::{
     structs::{FromReader, ObjectParsedFormula},
 };
 use crate::{
+    OoxmlError, Relationship, RelationshipType, SheetType,
     xlsb::structs::{XLNullableWideString, XLWideString},
     xlsx::SheetInfo,
-    OoxmlError, Relationship, RelationshipType, SheetType,
 };
-use ctxutils::io::{rdu16le, rdu32le, rdu8};
+use ctxutils::io::{rdu8, rdu16le, rdu32le};
 use std::io::{self, Read, Seek};
 use tracing::warn;
 

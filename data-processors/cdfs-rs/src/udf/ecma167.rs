@@ -4,7 +4,7 @@
 //!
 //! The paragraph number in the specifications is indicated in parentheses
 
-use ctxutils::io::{rdu16le, rdu32le, rdu64le, rdu8};
+use ctxutils::io::{rdu8, rdu16le, rdu32le, rdu64le};
 use std::fmt::{Debug, Display};
 use std::io::{Read, Seek};
 #[allow(unused_imports)]

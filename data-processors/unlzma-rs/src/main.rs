@@ -46,7 +46,7 @@ fn process_request(
             Err(e) => {
                 match e.kind() {
                     std::io::ErrorKind::InvalidData | std::io::ErrorKind::UnexpectedEof => {
-                        return Ok(BackendResultKind::error(format!("Invalid data ({})", e)))
+                        return Ok(BackendResultKind::error(format!("Invalid data ({})", e)));
                     }
                     std::io::ErrorKind::Other => {
                         debug!("Limit exceeded: {e}");

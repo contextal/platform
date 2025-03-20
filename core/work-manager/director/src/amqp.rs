@@ -152,14 +152,14 @@ impl Broker {
         async fn make_interval(rng: &mut rand::rngs::ThreadRng) -> tokio::time::Interval {
             use rand::Rng;
             let mut interval = tokio::time::interval(tokio::time::Duration::from_millis(
-                rng.gen_range(3000..6000),
+                rng.random_range(3000..6000),
             ));
             interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
             interval.tick().await; // ticks immediately
             debug!("Reload interval set to {}", interval.period().as_millis());
             interval
         }
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
         let mut interval = make_interval(&mut rng).await;
         loop {
             tokio::select!(
@@ -190,7 +190,10 @@ impl Broker {
     }
 
     /// Handles apply scenarios messages
-    async fn process_apply(&self, msg: ConsumerMessage) -> Result<(), Box<dyn std::error::Error>> {
+    async fn process_apply(
+        &mut self,
+        msg: ConsumerMessage,
+    ) -> Result<(), Box<dyn std::error::Error>> {
         // Note: unwaps on msg are safe - see amqprs docs
         let delivery_tag = msg.deliver.unwrap().delivery_tag();
         debug!(

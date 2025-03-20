@@ -1,10 +1,12 @@
 use serde::{Deserialize, Serialize};
 
+/// The base version requirement
+const SCN_MIN_VER: &str = ">=1.3.0";
+
 #[derive(Deserialize, Serialize)]
 pub struct Scenario {
     pub name: String,
-    pub min_ver: u16,
-    pub max_ver: Option<u16>,
+    pub compatible_with: Option<semver::VersionReq>,
     pub creator: String,
     pub description: String,
     pub local_query: String,
@@ -12,10 +14,25 @@ pub struct Scenario {
     pub action: String,
 }
 
+impl Scenario {
+    pub fn is_compatible(&self) -> bool {
+        self.compatible_with
+            .as_ref()
+            .map(|vreq| vreq.matches(&pgrules::CURRENT_VERSION))
+            .unwrap_or(true)
+    }
+
+    pub fn compatibility(&self) -> String {
+        self.compatible_with
+            .as_ref()
+            .map(|vreq| vreq.to_string())
+            .unwrap_or_else(|| SCN_MIN_VER.to_string())
+    }
+}
+
 #[derive(Deserialize, Serialize)]
 pub struct Contextual {
     pub global_query: String,
-    pub min_matches: usize,
 }
 
 #[derive(Debug, Deserialize, Serialize)]

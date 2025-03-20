@@ -1,7 +1,7 @@
 use super::{
-    shell_link_header::ReadShellLinkHeader, CodePage, CodepageString, ReadVec, UnicodeString,
+    CodePage, CodepageString, ReadVec, UnicodeString, shell_link_header::ReadShellLinkHeader,
 };
-use byteorder::{ReadBytesExt, LE};
+use byteorder::{LE, ReadBytesExt};
 use ctxutils::win32::GUID;
 use serde::{Serialize, Serializer};
 use std::io::{self, Cursor, Read, Seek};

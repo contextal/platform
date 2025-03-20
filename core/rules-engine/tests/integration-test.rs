@@ -118,8 +118,9 @@ pub mod test {
         }
         fn execute_postgres(&mut self, query: &str) -> Result<Vec<ER>, io::Error> {
             let mut result = Vec::new();
-            let query = pgrules::parse_to_sql(query)
-                .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
+            let query = pgrules::parse_to_sql(query, pgrules::QueryType::Search)
+                .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?
+                .query;
             let rows = self
                 .postgres
                 .client
@@ -148,6 +149,55 @@ pub mod test {
             if results != expected_results {
                 println!("QUERY: {query}");
                 println!("--Postgres: {results:?}\n--Expected: {expected_results:?}");
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    "Postgres result does not match expected results",
+                ));
+            }
+            Ok(())
+        }
+
+        fn test_global_query(
+            &mut self,
+            query: &str,
+            local_work_id: &str,
+            neighbours: &[&str],
+            expected: &mut [&str],
+        ) -> Result<(), io::Error> {
+            let global_rule =
+                pgrules::parse_to_sql(query, pgrules::QueryType::ScenarioGlobal).unwrap();
+            let has_with_clause = global_rule.with_clause.is_some();
+            let global_query = format!(
+                "{} SELECT EXISTS (SELECT 1 {})",
+                global_rule.with_clause.unwrap_or_default(),
+                global_rule.query
+            );
+            let global_stmt = self
+                .postgres
+                .client
+                .prepare(&global_query)
+                .expect(&global_query);
+
+            let mut results = Vec::new();
+            for &neigbour in neighbours {
+                let row = if has_with_clause {
+                    self.postgres
+                        .client
+                        .query_one(&global_stmt, &[&neigbour, &local_work_id])
+                } else {
+                    self.postgres.client.query_one(&global_stmt, &[&neigbour])
+                }
+                .unwrap();
+                if row.try_get(0).unwrap() {
+                    results.push(neigbour);
+                }
+            }
+            expected.sort();
+            results.sort();
+            if results != expected {
+                println!("QUERY: {query}");
+                println!("GLOBAL QUERY: {global_query}");
+                println!("--Postgres: {results:?}\n--Expected: {expected:?}");
                 return Err(io::Error::new(
                     io::ErrorKind::InvalidData,
                     "Postgres result does not match expected results",
@@ -781,6 +831,99 @@ pub mod test {
             ],
         )
         .unwrap();
+        test.test_query(
+            r#"@has_name(in("sample1", regex("^baner.\\.png$")))"#,
+            &mut [
+                er("work_002", "object_002_003"),
+                er("work_002", "object_002_004"),
+                er("work_003", "object_003_003"),
+            ],
+        )
+        .unwrap();
+        test.test_query(
+            r#"@has_symbol(in("DLL", iregex("TOP")))"#,
+            &mut [
+                er("work_001", "object_001_001"),
+                er("work_001", "object_001_002"),
+                er("work_004", "object_004_001"),
+            ],
+        )
+        .unwrap();
+        test.test_query(
+            r#"@match_object_meta($array[0].value in ("A", iregex("b"), 1))"#,
+            &mut [
+                er("work_001", "object_001_001"),
+                er("work_002", "object_002_004"),
+                er("work_004", "object_004_004"),
+            ],
+        )
+        .unwrap();
+        test.test_query(
+            "@match_object_meta($array in (1,$int2))",
+            &mut [
+                er("work_001", "object_001_004"),
+                er("work_003", "object_003_008"),
+            ],
+        )
+        .unwrap();
+        test.test_query(
+            r#"@match_object_meta($array ? ($key=="From" && $value in (1, iregex("a"))))"#,
+            &mut [
+                er("work_001", "object_001_001"),
+                er("work_004", "object_004_004"),
+            ],
+        )
+        .unwrap();
+        test.test_global_query(
+            "MATCHES:>1;TIME_WINDOW:1 week;${x}=LOCAL.size; size in ${x}",
+            "work_001",
+            &["work_001", "work_002", "work_003", "work_004", "work_005"],
+            &mut ["work_001", "work_003"],
+        )
+        .unwrap();
+        test.test_global_query(
+            "MATCHES:>1;TIME_WINDOW:1 week;${x}=LOCAL.get_names(); @has_name(in ${x})",
+            "work_003",
+            &["work_001", "work_002", "work_003", "work_004", "work_005"],
+            &mut ["work_001", "work_003", "work_005"],
+        )
+        .unwrap();
+        test.test_global_query(
+            "MATCHES:>1;TIME_WINDOW:1 week;${x}=LOCAL.get_symbols(); @has_symbol(in ${x})",
+            "work_003",
+            &["work_001", "work_002", "work_003", "work_004", "work_005"],
+            &mut ["work_001", "work_002", "work_003"],
+        )
+        .unwrap();
+        test.test_global_query(
+            "MATCHES:>1;TIME_WINDOW:1 week;${x}=LOCAL.get_object_meta($array.key); @match_object_meta($array.key in ${x})",
+            "work_004",
+            &["work_001", "work_002", "work_003", "work_004", "work_005"],
+            &mut ["work_001", "work_002", "work_004"],
+        )
+        .unwrap();
+        test.test_global_query(
+            "MATCHES:>1;TIME_WINDOW:1 week;${x}=LOCAL.get_relation_meta($x); @match_relation_meta($x in ${x})",
+            "work_001",
+            &["work_001", "work_002", "work_003", "work_004", "work_005"],
+            &mut ["work_001", "work_003", "work_004", "work_005"],
+        )
+        .unwrap();
+        test.test_global_query(
+            r#"MATCHES:>1;TIME_WINDOW:1 week;${x}=LOCAL.get_relation_meta($x); @match_relation_meta($x in ${x}) && @has_root(object_type!="Zip")"#,
+            "work_001",
+            &["work_001", "work_002", "work_003", "work_004", "work_005"],
+            &mut ["work_004", "work_005"],
+        )
+        .unwrap();
+        test.test_global_query(
+            r#"MATCHES:>1;TIME_WINDOW:1 week;is_entry && object_type=="Zip""#,
+            "work_000",
+            &["work_001", "work_002", "work_003", "work_004", "work_005"],
+            &mut ["work_001", "work_002", "work_003"],
+        )
+        .unwrap();
+
         // test.test_query("", &mut []).unwrap();
     }
 }

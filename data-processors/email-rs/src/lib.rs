@@ -116,7 +116,7 @@ impl Part {
                 }
                 break;
             }
-            if let Some(ref mut hdr) = current_header.as_mut() {
+            if let Some(hdr) = current_header.as_mut() {
                 if WSP.contains(line.first().unwrap()) {
                     hdr.unfold(line);
                     debug!("Unfolding header: {}", hdr.name);
@@ -475,7 +475,7 @@ impl<R: Read> Mail<R> {
                     break;
                 }
             }
-            if let Some(ref mut body_writer) = &mut writer {
+            if let Some(body_writer) = &mut writer {
                 if line.is_empty() {
                     // Note: write_all() won't call write() on an empty line
                     // also `let _ =` makes clippy happy
@@ -489,7 +489,7 @@ impl<R: Read> Mail<R> {
                 }
             }
         }
-        if let Some(ref mut writer) = &mut writer {
+        if let Some(writer) = &mut writer {
             writer.flush()?;
             (
                 has_ugly_qp,

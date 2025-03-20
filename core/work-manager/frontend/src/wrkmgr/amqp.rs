@@ -794,9 +794,7 @@ impl ChildQueue {
         expiration_ts: &SystemTime,
     ) -> Result<(), Box<dyn std::error::Error>> {
         let correlation_id = format!("{}.{}", key, child.correlation_id);
-        let ttl = expiration_ts
-            .time_remaining()
-            .unwrap_or(Duration::default());
+        let ttl = expiration_ts.time_remaining().unwrap_or_default();
         let child_ref: object::DescriptorRef = child.into();
         shared::amqp::publish_job_request(
             &self.channel,

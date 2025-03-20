@@ -231,7 +231,8 @@ impl GraphDB {
         getobjects: bool,
         max_items: u32,
     ) -> Result<Vec<String>, SearchError> {
-        let parsed = pgrules::parse_to_sql(q).map_err(|e| SearchError::Rule(e.to_string()))?;
+        let parsed = pgrules::parse_to_sql(q, pgrules::QueryType::Search)
+            .map_err(|e| SearchError::Rule(e.to_string()))?;
         let query = format!(
             "SELECT {} {} LIMIT {}",
             if getobjects {
@@ -239,7 +240,7 @@ impl GraphDB {
             } else {
                 "distinct work_id"
             },
-            parsed,
+            parsed.query,
             max_items
         );
         let mut client = self.read_pool.get().await.map_err(|e| {
@@ -288,11 +289,12 @@ impl GraphDB {
     }
 
     pub async fn count(&self, q: &str, getobjects: bool) -> Result<CountResult, SearchError> {
-        let parsed = pgrules::parse_to_sql(q).map_err(|e| SearchError::Rule(e.to_string()))?;
+        let parsed = pgrules::parse_to_sql(q, pgrules::QueryType::Search)
+            .map_err(|e| SearchError::Rule(e.to_string()))?;
         let query = format!(
             "SELECT count({}) {}",
             if getobjects { "*" } else { "distinct work_id" },
-            parsed
+            parsed.query
         );
         let mut client = self.read_pool.get().await.map_err(|e| {
             error!("Failed to get read-only connection from pool: {e}");
@@ -339,10 +341,10 @@ impl GraphDB {
         if scenario.name.is_empty() {
             return Err(ScenaryError::Invalid("Invalid name"));
         }
-        if let Some(max_ver) = scenario.max_ver {
-            if max_ver < scenario.min_ver {
-                return Err(ScenaryError::Invalid("Invalid version range"));
-            }
+        if !scenario.is_compatible() {
+            return Err(ScenaryError::Invalid(
+                "The scenario is not compatible with the current Platform version",
+            ));
         }
         if scenario.creator.is_empty() {
             return Err(ScenaryError::Invalid("Invalid creator"));
@@ -350,16 +352,19 @@ impl GraphDB {
         if scenario.action.is_empty() {
             return Err(ScenaryError::Invalid("Invalid action"));
         }
-        if pgrules::parse_to_sql(&scenario.local_query).is_err() {
+        if pgrules::parse_to_sql(&scenario.local_query, pgrules::QueryType::ScenarioLocal).is_err()
+        {
             return Err(ScenaryError::Invalid("Invalid local rule"));
         }
         clam::find_invalid_patttern(&scenario.local_query).await?;
         if let Some(context) = &scenario.context {
-            if context.min_matches == 0 {
-                return Err(ScenaryError::Invalid("Invalid min_matches"));
-            }
-            if pgrules::parse_to_sql(&context.global_query).is_err() {
-                return Err(ScenaryError::Invalid("Invalid context rule"));
+            match pgrules::parse_to_sql(&context.global_query, pgrules::QueryType::ScenarioGlobal) {
+                Ok(command) => {
+                    if command.global_query_settings.is_none() {
+                        return Err(ScenaryError::Invalid("Invalid global query settings"));
+                    }
+                }
+                Err(_) => return Err(ScenaryError::Invalid("Invalid context rule")),
             }
             clam::find_invalid_patttern(&context.global_query).await?;
         }

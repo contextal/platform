@@ -52,8 +52,9 @@ fn simple_mail() -> Result<(), std::io::Error> {
     assert!(!part.unsupported_charset);
     assert!(!part.has_text_decoder_errors);
 
-    assert!(mail
-        .dump_current_part(&mut std::io::sink(), SIZE_LIMIT, SIZE_LIMIT)?
-        .is_none());
+    assert!(
+        mail.dump_current_part(&mut std::io::sink(), SIZE_LIMIT, SIZE_LIMIT)?
+            .is_none()
+    );
     Ok(())
 }

@@ -1,4 +1,4 @@
-use crate::{config::Config, rendered_page::RenderedPage, ChildType, PdfBackendError};
+use crate::{ChildType, PdfBackendError, config::Config, rendered_page::RenderedPage};
 use backend_utils::objects::BackendResultChild;
 use ocr_rs::TessBaseApi;
 use std::fs;

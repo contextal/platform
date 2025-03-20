@@ -1,4 +1,4 @@
-use crate::{process_request, BackendState};
+use crate::{BackendState, process_request};
 use backend_utils::objects::{BackendRequest, BackendResultKind, Info, Metadata};
 use std::collections::HashMap;
 use tempfile::TempDir;
@@ -54,10 +54,12 @@ fn example_toml() {
         "Unexpected identified programming language"
     );
 
-    assert!(backend_result.object_metadata["uris"]
-        .as_array()
-        .expect("an array")
-        .is_empty());
+    assert!(
+        backend_result.object_metadata["uris"]
+            .as_array()
+            .expect("an array")
+            .is_empty()
+    );
 
     assert!(backend_result.symbols.contains(&"MANY_NUMBERS".to_string()));
     assert!(backend_result.symbols.contains(&"CC_NUMBER".to_string()));
@@ -75,10 +77,12 @@ fn broken_toml() {
 
     assert!(backend_result.object_metadata["programming_language"].is_null());
 
-    assert!(backend_result.object_metadata["uris"]
-        .as_array()
-        .expect("an array")
-        .is_empty());
+    assert!(
+        backend_result.object_metadata["uris"]
+            .as_array()
+            .expect("an array")
+            .is_empty()
+    );
 
     assert!(!backend_result.symbols.contains(&"CC_NUMBER".to_string()));
 }
@@ -102,10 +106,12 @@ fn passwords() {
 
     assert!(backend_result.object_metadata["programming_language"].is_null());
 
-    assert!(backend_result.object_metadata["uris"]
-        .as_array()
-        .expect("an array")
-        .is_empty());
+    assert!(
+        backend_result.object_metadata["uris"]
+            .as_array()
+            .expect("an array")
+            .is_empty()
+    );
 
     let mut expected = vec![
         "password1",

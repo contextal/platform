@@ -1,4 +1,4 @@
-use ctxole::{crypto, oleps, Ole};
+use ctxole::{Ole, crypto, oleps};
 use sha1::{Digest as _, Sha1};
 use std::collections::HashMap;
 use std::{

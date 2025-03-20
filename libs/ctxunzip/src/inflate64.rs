@@ -505,22 +505,30 @@ mod test {
         assert!(FIXED_LITLEN.table[4].is_empty());
         assert!(FIXED_LITLEN.table[5].is_empty());
         assert!(FIXED_LITLEN.table[6].is_empty());
-        assert!(FIXED_LITLEN.table[7]
-            .iter()
-            .map(|v| *v)
-            .eq((256u16..280).into_iter()));
-        assert!(FIXED_LITLEN.table[8][0..144]
-            .iter()
-            .map(|v| *v)
-            .eq((0u16..144).into_iter()));
-        assert!(FIXED_LITLEN.table[8][144..]
-            .iter()
-            .map(|v| *v)
-            .eq((280u16..288).into_iter()));
-        assert!(FIXED_LITLEN.table[9]
-            .iter()
-            .map(|v| *v)
-            .eq((144u16..256).into_iter()));
+        assert!(
+            FIXED_LITLEN.table[7]
+                .iter()
+                .map(|v| *v)
+                .eq((256u16..280).into_iter())
+        );
+        assert!(
+            FIXED_LITLEN.table[8][0..144]
+                .iter()
+                .map(|v| *v)
+                .eq((0u16..144).into_iter())
+        );
+        assert!(
+            FIXED_LITLEN.table[8][144..]
+                .iter()
+                .map(|v| *v)
+                .eq((280u16..288).into_iter())
+        );
+        assert!(
+            FIXED_LITLEN.table[9]
+                .iter()
+                .map(|v| *v)
+                .eq((144u16..256).into_iter())
+        );
         assert!(FIXED_LITLEN.table[10].is_empty());
         assert!(FIXED_LITLEN.table[11].is_empty());
         assert!(FIXED_LITLEN.table[12].is_empty());
@@ -537,10 +545,12 @@ mod test {
         assert!(FIXED_DIST.table[2].is_empty());
         assert!(FIXED_DIST.table[3].is_empty());
         assert!(FIXED_DIST.table[4].is_empty());
-        assert!(FIXED_DIST.table[5]
-            .iter()
-            .map(|v| *v)
-            .eq((0u16..32).into_iter()));
+        assert!(
+            FIXED_DIST.table[5]
+                .iter()
+                .map(|v| *v)
+                .eq((0u16..32).into_iter())
+        );
         assert!(FIXED_DIST.table[6].is_empty());
         assert!(FIXED_DIST.table[7].is_empty());
         assert!(FIXED_DIST.table[8].is_empty());

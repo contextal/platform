@@ -5,13 +5,17 @@ members = [
   "pgrules",
   "rules2sql",
   "wasmql",
-  "tests",
+  # Tests are currently disabled and run manually due to "security" issues in the supply chain
+  #
+  # We believe our time is better spent writing quality code rather than chasing gazilion of "AI" bots
+  # performing unasked and unwarranted "security audits" on our behalf
+  #"tests",
 ]
 exclude = [ "fuzz" ]
 
 [workspace.package]
 edition = "2021"
-version = "1.2.0"
+version = "1.3.0"
 homepage = "https://contextal.com/"
 license = "GPL-3.0-only"
 
@@ -20,3 +24,4 @@ pest = "2.7"
 pest_derive = "2.7"
 tracing = "0.1"
 time = "0.3"
+semver = "1.0"

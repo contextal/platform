@@ -14,14 +14,15 @@ use std::{
     path::{Path, PathBuf},
 };
 use tensorflow::{
-    Graph, Operation, SavedModelBundle, SessionOptions, SessionRunArgs, Tensor, CLASSIFY_INPUTS,
-    CLASSIFY_OUTPUT_CLASSES, CLASSIFY_OUTPUT_SCORES, DEFAULT_SERVING_SIGNATURE_DEF_KEY,
+    CLASSIFY_INPUTS, CLASSIFY_OUTPUT_CLASSES, CLASSIFY_OUTPUT_SCORES,
+    DEFAULT_SERVING_SIGNATURE_DEF_KEY, Graph, Operation, SavedModelBundle, SessionOptions,
+    SessionRunArgs, Tensor,
 };
-use text_rs::{config::Config, TextBackendError};
+use text_rs::{TextBackendError, config::Config};
 use tracing::{error, info, instrument, trace, warn};
 use tracing_subscriber::prelude::*;
 use tree_sitter::{Language, Parser};
-use tree_sitter_traversal::{traverse, Order};
+use tree_sitter_traversal::{Order, traverse};
 use vader_sentiment::SentimentIntensityAnalyzer;
 use whatlang::{Detector, Lang};
 
@@ -158,7 +159,7 @@ impl BackendState<'_> {
 
         // Reduce Tensorflow library verbosity if it has not bee explicitly set already:
         if env::var("TF_CPP_MIN_LOG_LEVEL").is_err() {
-            env::set_var("TF_CPP_MIN_LOG_LEVEL", "2")
+            unsafe { env::set_var("TF_CPP_MIN_LOG_LEVEL", "2") };
         }
 
         let mut graph = Graph::new();

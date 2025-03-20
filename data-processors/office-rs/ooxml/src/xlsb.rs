@@ -5,18 +5,18 @@ use std::{
     rc::Rc,
 };
 
-use ctxutils::io::{rdf64le, rdu16le, rdu32le, rdu8};
+use ctxutils::io::{rdf64le, rdu8, rdu16le, rdu32le};
 use record::{BeginSst, BundleSh, OleObject, RecordReader, SSTItem};
 use record_type::RecordType;
 use structs::{FromReader, RkNumber, XLNullableWideString, XLWideString};
 use tracing::warn;
 
 use crate::{
+    OoxmlError, ProcessingSummary, Relationship, RelationshipType,
     archive::{Archive, Entry},
     drawing::Drawing,
     relationship::{FileToProcess, TargetMode},
-    xlsx::{find_regions, RowInfo, SharedStringEntry, SheetInfo},
-    OoxmlError, ProcessingSummary, Relationship, RelationshipType,
+    xlsx::{RowInfo, SharedStringEntry, SheetInfo, find_regions},
 };
 
 mod record;
@@ -62,7 +62,7 @@ impl BinarySharedStrings {
                 }
             } else {
                 let sst_item = record_reader.read_record::<SSTItem>(&record_header)?;
-                let size = u64::try_from(sst_item.value.as_bytes().len())?;
+                let size = u64::try_from(sst_item.value.len())?;
                 shared_strings_cache_limit = shared_strings_cache_limit.saturating_sub(size);
                 SharedStringEntry::Cached(sst_item.value)
             };

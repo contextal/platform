@@ -1,7 +1,7 @@
 use ctxole::{
+    Ole, OleEntry,
     crypto::OleCrypto,
     oleps::{DocumentSummaryInformation, SummaryInformation},
-    Ole, OleEntry,
 };
 use std::fs::File;
 use std::io::{self, BufReader, Write};

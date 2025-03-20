@@ -1,5 +1,5 @@
 use chrono::{TimeZone, Utc};
-use ctxutils::io::{rdu16le, rdu32le, rdu64le, rdu8};
+use ctxutils::io::{rdu8, rdu16le, rdu32le, rdu64le};
 use serde::Serialize;
 use std::cmp::min;
 use std::io::{Read, Seek, SeekFrom};

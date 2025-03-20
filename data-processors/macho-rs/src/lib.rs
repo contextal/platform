@@ -460,7 +460,7 @@ impl MachO {
                 return Err(std::io::Error::new(
                     std::io::ErrorKind::InvalidData,
                     "Not a Mach-O file: Invalid magic number",
-                ))
+                ));
             }
         }
 

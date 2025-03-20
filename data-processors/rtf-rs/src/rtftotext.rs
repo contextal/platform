@@ -10,8 +10,8 @@ use anyhow::{Context, Result};
 #[allow(unused_imports)]
 use tracing::{debug, error, info, instrument, warn};
 
-use rtf_grimoire::tokenizer::parse_finished as parse_tokens;
 use rtf_grimoire::tokenizer::Token;
+use rtf_grimoire::tokenizer::parse_finished as parse_tokens;
 
 use crate::rtf_control;
 
@@ -144,7 +144,10 @@ impl GroupState {
                 Destination::Bytes(_) => dest.append_bytes(bytes),
             }
         } else {
-            panic!("Programming error: specified destination {} doesn't exist after verifying its existence", dest_name);
+            panic!(
+                "Programming error: specified destination {} doesn't exist after verifying its existence",
+                dest_name
+            );
         }
     }
 

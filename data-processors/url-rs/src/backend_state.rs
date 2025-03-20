@@ -1,14 +1,14 @@
-use crate::{config::Config, error::UrlBackendError, page::Page, Url};
+use crate::{Url, config::Config, error::UrlBackendError, page::Page};
 use backend_utils::objects::BackendRequest;
 use chromiumoxide::{
+    Browser, BrowserConfig,
     cdp::browser_protocol::{
         browser::{SetDownloadBehaviorBehavior, SetDownloadBehaviorParams},
         fetch::{self, RequestPattern, RequestStage},
         network::SetUserAgentOverrideParams,
     },
-    Browser, BrowserConfig,
 };
-use futures::{lock::Mutex, StreamExt};
+use futures::{StreamExt, lock::Mutex};
 use std::{
     cell::Cell,
     fs,

@@ -1,17 +1,17 @@
 [package]
 name = "msi-rs"
-version = "1.2.0"
-edition = "2021"
+version = "1.3.0"
+edition = "2024"
 homepage = "https://contextal.com/"
 license = "GPL-3.0-only"
 description = "MSI file backend"
 
 [dependencies]
-msi = "0.7.0"
+msi = "0.8"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3.17", features = ["env-filter"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 tempfile = "3"
-backend-utils = { path = "../../libs/backend-utils" }
+backend-utils = {  path = "../../libs/backend-utils" }
 figment = { version = "0.10", features = ["toml", "env"] }

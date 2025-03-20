@@ -149,7 +149,7 @@ impl<'t> form::FieldReader<'t> for TempObject {
             e: E,
         ) -> actix_multipart::MultipartError {
             actix_multipart::MultipartError::Field {
-                field_name: name.to_string(),
+                name: name.to_string(),
                 source: e.into(),
             }
         }
@@ -170,17 +170,17 @@ impl<'t> form::FieldReader<'t> for TempObject {
             let objects_path = req.app_data::<web::Data<String>>().unwrap().as_ref();
             let mut tmpf = TempObject::new(objects_path.as_ref()).await.map_err(|e| {
                 error!("Failed to create temporary file: {e}");
-                map_err(field.name(), e)
+                map_err(field.name().unwrap_or("unknown field"), e)
             })?;
             debug!(
                 "Dumping field {} to temporary location {}",
-                field.name(),
+                field.name().unwrap_or("unknown field"),
                 tmpf.name.display()
             );
             if let Err(e) = dump_field(&mut tmpf, &mut field, limits).await {
                 error!("Failed to write temporary file: {e}");
                 tmpf.remove().await;
-                Err(map_err(field.name(), e))
+                Err(map_err(field.name().unwrap_or("unknown field"), e))
             } else {
                 Ok(tmpf)
             }

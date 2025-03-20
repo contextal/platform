@@ -25,11 +25,11 @@ unsafe fn get_line_len_fast(line: &[u8]) -> Option<usize> {
     if line.is_empty() {
         return None;
     }
-    let needle = _mm_set1_epi16(0x0d0a);
+    let needle = unsafe { _mm_set1_epi16(0x0d0a) };
     if line.len() == 16 {
         // Special case, unaligned but faster
-        let haystack = _mm_lddqu_si128(line.as_ptr() as _);
-        let idx = _mm_cmpestri(needle, 2, haystack, 16, 0);
+        let haystack = unsafe { _mm_lddqu_si128(line.as_ptr() as _) };
+        let idx = unsafe { _mm_cmpestri(needle, 2, haystack, 16, 0) };
         if idx < 16 {
             return Some(idx as usize);
         } else {
@@ -37,32 +37,33 @@ unsafe fn get_line_len_fast(line: &[u8]) -> Option<usize> {
         }
     }
 
-    let (head, aligned, mut tail): (&[u8], &[__m128i], &[u8]) = line.align_to::<__m128i>();
+    let (head, aligned, mut tail): (&[u8], &[__m128i], &[u8]) =
+        unsafe { line.align_to::<__m128i>() };
     if !head.is_empty() {
         let len = head.len();
         // Line is misaligned
         // Align to the previous 16-byte bound, so it points to the garbage before head
         let hay_ptr = head.as_ptr() as usize & !15;
         // Load the data (aligned read)
-        let mut haystack = _mm_load_si128(hay_ptr as _);
+        let mut haystack = unsafe { _mm_load_si128(hay_ptr as _) };
         // The haystack contain leading garbage which we don't want to match on, so it's rotated as needed
         // Note this is *a lot* faster than an unaligned read
         // The length of the leading garbage
         let garbage_len = head.as_ptr() as usize & 15;
         if garbage_len & 8 != 0 {
-            haystack = _mm_srli_si128(haystack, 8);
+            haystack = unsafe { _mm_srli_si128(haystack, 8) };
         }
         if garbage_len & 4 != 0 {
-            haystack = _mm_srli_si128(haystack, 4);
+            haystack = unsafe { _mm_srli_si128(haystack, 4) };
         }
         if garbage_len & 2 != 0 {
-            haystack = _mm_srli_si128(haystack, 2);
+            haystack = unsafe { _mm_srli_si128(haystack, 2) };
         }
         if garbage_len & 1 != 0 {
-            haystack = _mm_srli_si128(haystack, 1);
+            haystack = unsafe { _mm_srli_si128(haystack, 1) };
         }
         // The haystack now contains our head at the beginning, the garbage is out, zeroes are in
-        let idx = _mm_cmpestri(needle, 2, haystack, len as i32, 0); // FIXME compare less?
+        let idx = unsafe { _mm_cmpestri(needle, 2, haystack, len as i32, 0) }; // FIXME compare less?
         if idx < len as i32 {
             return Some(idx as usize);
         }
@@ -72,8 +73,8 @@ unsafe fn get_line_len_fast(line: &[u8]) -> Option<usize> {
     let mut pos = head.len();
     for chunk in aligned {
         // Load the data (aligned read)
-        let haystack = _mm_load_si128(chunk as _);
-        let idx = _mm_cmpestri(needle, 2, haystack, 16, 0);
+        let haystack = unsafe { _mm_load_si128(chunk as _) };
+        let idx = unsafe { _mm_cmpestri(needle, 2, haystack, 16, 0) };
         if idx < 16 {
             return Some(pos + idx as usize);
         }
@@ -84,8 +85,8 @@ unsafe fn get_line_len_fast(line: &[u8]) -> Option<usize> {
     // For inexplicable reasons this might might be > 16 bytes - see notes on align_to
     while !tail.is_empty() {
         let len = tail.len().min(16);
-        let haystack = _mm_load_si128(tail.as_ptr() as _);
-        let idx = _mm_cmpestri(needle, 2, haystack, len as i32, 0);
+        let haystack = unsafe { _mm_load_si128(tail.as_ptr() as _) };
+        let idx = unsafe { _mm_cmpestri(needle, 2, haystack, len as i32, 0) };
         if idx < len as i32 {
             return Some(pos + idx as usize);
         }

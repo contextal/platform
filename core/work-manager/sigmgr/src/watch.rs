@@ -123,7 +123,7 @@ impl Clamd {
             stream.set_linger(None).ok();
             let send = format!("z{}\0", send);
             let expect = format!("{}\0", expect);
-            let mut buf: Vec<u8> = vec![0; expect.as_bytes().len()];
+            let mut buf: Vec<u8> = vec![0; expect.len()];
             stream.write_all(send.as_bytes()).await?;
             stream.read_exact(&mut buf).await?;
             if buf == expect.as_bytes() {

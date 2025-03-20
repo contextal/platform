@@ -1,8 +1,8 @@
 //! Legacy (in-place) Ole encryption
 
 mod xor;
-use super::standard::StandardEncryption;
 use super::EncryptionAlgo;
+use super::standard::StandardEncryption;
 use ctxutils::cmp::Unsigned as _;
 use md5::{Digest as _, Md5};
 use rc4::{self, KeyInit as _, Rc4, StreamCipher as _};
@@ -262,12 +262,12 @@ pub enum LegacyKey {
 impl LegacyKey {
     /// Apply the key to the porovided cyphertext for in-place decryption
     pub fn apply(&self, buf: &mut [u8], stream_position: u64) {
-        if let Self::XorObfuscation(ref k) = self {
+        if let Self::XorObfuscation(k) = self {
             k.apply(buf, stream_position);
         } else {
             let block_size = match self {
-                Self::Rc4Key(ref k) => k.block_size,
-                Self::CryptoApiKey(ref k) => k.block_size,
+                Self::Rc4Key(k) => k.block_size,
+                Self::CryptoApiKey(k) => k.block_size,
                 _ => unreachable!(),
             };
             let mut offset = (stream_position % u64::from(block_size)) as usize; // Safe bc mod
@@ -277,12 +277,12 @@ impl LegacyKey {
             while todo > 0 {
                 let encrypted_size = todo.min(usize::from(block_size) - offset);
                 match self {
-                    Self::Rc4Key(ref k) => k.apply(
+                    Self::Rc4Key(k) => k.apply(
                         block_number,
                         &mut buf[start..(start + encrypted_size)],
                         offset,
                     ),
-                    Self::CryptoApiKey(ref k) => k.apply(
+                    Self::CryptoApiKey(k) => k.apply(
                         block_number,
                         &mut buf[start..(start + encrypted_size)],
                         offset,

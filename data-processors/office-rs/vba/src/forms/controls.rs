@@ -5,7 +5,7 @@
 pub mod child;
 pub mod parent;
 
-use super::{mask::*, Font, Picture};
+use super::{Font, Picture, mask::*};
 use crate::Ole;
 use child::*;
 use ctxutils::io::*;

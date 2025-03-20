@@ -1,7 +1,7 @@
 max_processed_size = 262144000
 max_objects = 262144
 max_object_depth = 16
-max_pages = 2048
+max_pages = 20
 max_bookmarks = 8192
 max_annotations = 16384
 max_attachments = 128
@@ -20,7 +20,7 @@ render_page_width = 1920
 # render_page_height = 4320
 
 # WARNING: POSITIVELY DO NOT ENABLE THIS ONE! (without setting sane children limits)
-save_image_objects = false
+save_image_objects = true
 
 # valid OCR modes are: "Never", "IfNoDocumentTextAvailable" and "Always"
 ocr_mode = "IfNoDocumentTextAvailable"

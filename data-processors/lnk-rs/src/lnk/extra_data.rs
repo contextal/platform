@@ -1,12 +1,12 @@
 use super::{
-    link_target_id_list::IDList, shell_link_header::ReadShellLinkHeader, CodePage, CodepageString,
-    ReadVec, UnicodeString,
+    CodePage, CodepageString, ReadVec, UnicodeString, link_target_id_list::IDList,
+    shell_link_header::ReadShellLinkHeader,
 };
 use bitflags::bitflags;
-use byteorder::{ReadBytesExt, LE};
-use ctxutils::win32::GUID;
+use byteorder::{LE, ReadBytesExt};
 use ctxole::oleps::{FromOlepsReader, TypedPropertyValue};
-use serde::{ser::SerializeStruct, Serialize, Serializer};
+use ctxutils::win32::GUID;
+use serde::{Serialize, Serializer, ser::SerializeStruct};
 use std::{
     io,
     io::{Cursor, Seek},

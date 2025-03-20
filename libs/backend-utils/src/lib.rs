@@ -53,14 +53,14 @@ macro_rules! work_loop {
 ///   - dispatches the request over to the specified work_fn
 ///   - receives the result
 ///   - appends `backend_version` argument value to `object_metadata` if the result is of
-///   `BackendResultKind::ok(BackendResultOk)` kind
+///     `BackendResultKind::ok(BackendResultOk)` kind
 ///   - transmits back the result to the frontend
 ///
 /// # Parameters #
 /// - `host`: the frontend host to connect to (address or name)
 /// - `port`: the frontend TCP port to connect to
 /// - `backend_version`: the backend crate version (see [`work_loop!`] macro which can
-/// extract/provide this value by itself)
+///   extract/provide this value by itself)
 /// - `work_fn`: the worker function
 ///
 /// # Notes #

@@ -742,9 +742,11 @@ fn verify_doc_common_metadata(result: &BackendResultOk) {
         properties.get("title"),
         Some(&Value::String("Word sample file".to_string()))
     );
-    assert!(result
-        .object_metadata
-        .contains_key(&"user_properties".to_string()));
+    assert!(
+        result
+            .object_metadata
+            .contains_key(&"user_properties".to_string())
+    );
     assert!(result.object_metadata.contains_key(&"vba".to_string()));
 }
 
@@ -763,9 +765,11 @@ fn verify_xls_common_metadata(result: &BackendResultOk) {
         properties.get("creator"),
         Some(&Value::String("test".to_string()))
     );
-    assert!(result
-        .object_metadata
-        .contains_key(&"user_properties".to_string()));
+    assert!(
+        result
+            .object_metadata
+            .contains_key(&"user_properties".to_string())
+    );
     assert!(result.object_metadata.contains_key(&"vba".to_string()));
 }
 

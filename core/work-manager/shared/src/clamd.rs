@@ -1,8 +1,7 @@
 //! ClamAV (clamd) socket interface
 use crate::config::ClamdServiceConfig;
 use crate::{object, utils};
-use tokio::io::AsyncReadExt;
-use tokio::io::AsyncWriteExt;
+use tokio::io::{AsyncReadExt, AsyncSeekExt, AsyncWriteExt};
 #[allow(unused_imports)]
 use tracing::{debug, error, info, warn};
 
@@ -38,25 +37,19 @@ impl Clamd {
         debug!("Retrieving Clam symbols from {}...", self.addr);
         let mut stream = tokio::net::TcpStream::connect(&self.addr)
             .await
-            .map_err(|e| {
-                warn!("Failed to connect to clamd at {}: {}", self.addr, e);
-                e
-            })?;
+            .inspect_err(|e| warn!("Failed to connect to clamd at {}: {}", self.addr, e))?;
         let scan_cmd = if allmatch { "ALLMATCHSCAN" } else { "SCAN" };
         let obj_fname = format!("{}/{}", self.objects_path, object_id);
         let cmd = format!("z{} {}\0", scan_cmd, obj_fname);
-        stream.write_all(cmd.as_bytes()).await.map_err(|e| {
-            warn!("Failed to send command to clamd at {}: {}", self.addr, e);
-            e
-        })?;
-        let reply = utils::read_all(&mut stream).await.map_err(|e| {
-            warn!("Failed to recv from clamd at {}: {}", self.addr, e);
-            e
-        })?;
-        let reply = String::from_utf8(reply).map_err(|e| {
-            warn!("Invalid reply from clamd at {}: {}", self.addr, e);
-            e
-        })?;
+        stream
+            .write_all(cmd.as_bytes())
+            .await
+            .inspect_err(|e| warn!("Failed to send command to clamd at {}: {}", self.addr, e))?;
+        let reply = utils::read_all(&mut stream)
+            .await
+            .inspect_err(|e| warn!("Failed to recv from clamd at {}: {}", self.addr, e))?;
+        let reply = String::from_utf8(reply)
+            .inspect_err(|e| warn!("Invalid reply from clamd at {}: {}", self.addr, e))?;
         let ret: Vec<String> = reply
             .as_str()
             .split('\0')
@@ -124,12 +117,11 @@ impl Typedet {
             .clamd
             .get_symbol(&object.object_id)
             .await
-            .map_err(|e| {
+            .inspect_err(|e| {
                 error!(
                     "Typedet failed to determine ftype for \"{}\": {}",
                     object.object_id, e
-                );
-                e
+                )
             })?
             .unwrap_or_else(|| "UNKNOWN".to_string());
         debug!("Typedet for object \"{}\": {:?}", object.object_id, ftype);
@@ -143,21 +135,27 @@ impl Typedet {
     async fn refine_object_type(
         object: &mut object::Info,
         objects_path: &str,
-    ) -> Result<(), Box<dyn std::error::Error>> {
+    ) -> Result<(), std::io::Error> {
+        const CHUNK_SIZE: u64 = 512;
+        const CHUNK_SIZE_BUF: usize = CHUNK_SIZE as usize; // safe
+        const NCHUNKS: u64 = 4;
         if object.object_type != "Text" {
             return Ok(());
         }
         let obj_fname = format!("{}/{}", objects_path, object.object_id);
-        let mut buf: Vec<u8> = Vec::with_capacity(1024);
-        let size = tokio::fs::File::open(&obj_fname)
+        let mut f = tokio::fs::File::open(&obj_fname).await.inspect_err(|e| {
+            error!("Failed to open \"{}\" for text detection: {}", obj_fname, e)
+        })?;
+        let size = f
+            .metadata()
             .await
-            .map_err(|e| {
-                error!("Failed to open \"{}\" for hashing: {}", obj_fname, e);
-                e
+            .inspect_err(|e| {
+                error!(
+                    "Failed to read metadata from \"{}\" for text detection: {}",
+                    obj_fname, e
+                )
             })?
-            .take(1024)
-            .read_to_end(&mut buf)
-            .await?;
+            .len();
         if size == 0 {
             debug!(
                 "Text type not confirmed for object \"{}\" (empty file)",
@@ -165,6 +163,39 @@ impl Typedet {
             );
             object.set_type("UNKNOWN");
             return Ok(());
+        }
+        let buf_size = usize::try_from(size.min(CHUNK_SIZE * NCHUNKS)).unwrap(); // safe bc min
+        let mut buf = vec![0u8; buf_size];
+        if size <= CHUNK_SIZE * NCHUNKS {
+            f.read_exact(&mut buf).await.inspect_err(|e| {
+                error!(
+                    "Failed to read from \"{}\" for text detection: {}",
+                    obj_fname, e
+                )
+            })?;
+        } else {
+            let chunk_size = size / NCHUNKS;
+            let mut cur_buf = buf.as_mut_slice();
+            for i in 0u64..NCHUNKS {
+                info!("Reading chunk {} @{}", i, chunk_size * i);
+                f.seek(std::io::SeekFrom::Start(chunk_size * i))
+                    .await
+                    .inspect_err(|e| {
+                        error!(
+                            "Failed to seek chunk of \"{}\" for text detection: {}",
+                            obj_fname, e
+                        )
+                    })?;
+                f.read_exact(&mut cur_buf[0..CHUNK_SIZE_BUF])
+                    .await
+                    .inspect_err(|e| {
+                        error!(
+                            "Failed to read chunk from \"{}\" for text detection: {}",
+                            obj_fname, e
+                        )
+                    })?;
+                cur_buf = &mut cur_buf[CHUNK_SIZE_BUF..];
+            }
         }
         if buf.starts_with(b"\xff\xfe") {
             debug!(

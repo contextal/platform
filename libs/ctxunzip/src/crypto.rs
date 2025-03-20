@@ -1,6 +1,6 @@
 //! Traditional PKWARE and WinZip encryption
 use ctr::cipher::{KeyIvInit, StreamCipher};
-use hmac::{digest::FixedOutputReset, Mac, SimpleHmac};
+use hmac::{Mac, SimpleHmac, digest::FixedOutputReset};
 use std::{
     cell::RefCell,
     io::{Read, Seek},

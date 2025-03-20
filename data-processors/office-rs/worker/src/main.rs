@@ -7,16 +7,16 @@ use backend_utils::objects::{
     BackendRequest, BackendResultChild, BackendResultKind, BackendResultOk, Metadata,
 };
 use ctxole::{
+    Encryption, NoValidPasswordError, Ole,
     crypto::OleCrypto,
     oleps::{self, DocumentSummaryInformation, SummaryInformation},
-    Encryption, NoValidPasswordError, Ole,
 };
 use ctxutils::io::LimitedWriter;
 use doc::{Doc, DocPart, WordChar};
 use error::OfficeError;
 use ooxml::{
-    relationship::TargetMode, DocumentSecurity as DocSec, Ooxml, ProcessingSummary,
-    RelationshipType,
+    DocumentSecurity as DocSec, Ooxml, ProcessingSummary, RelationshipType,
+    relationship::TargetMode,
 };
 use scopeguard::ScopeGuard;
 use serde::Serialize;
@@ -27,19 +27,19 @@ use std::{
     io::{self, BufReader, Read, Seek, Write},
     path::PathBuf,
 };
-use tempfile::{tempfile, NamedTempFile, TempPath};
+use tempfile::{NamedTempFile, TempPath, tempfile};
 use time::{Duration, OffsetDateTime};
 use tracing::{debug, instrument, warn};
 use tracing_subscriber::prelude::*;
 use url::Url;
 use vba::{
-    forms::{Control, ParentControl},
     ModuleGeneric, ModuleTrait, ProjectTrait, Vba, VbaDocument,
+    forms::{Control, ParentControl},
 };
 use xls::{
+    Xls,
     macrosheet::MacroSheet,
     worksheet::{self, Worksheet},
-    Xls,
 };
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {

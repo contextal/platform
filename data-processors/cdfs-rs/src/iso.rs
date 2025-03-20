@@ -6,7 +6,7 @@
 //!
 //! The header presence and the raw sector size are autodetected
 
-use ctxutils::io::{rdu16be, rdu16le, rdu32be, rdu32le, rdu8};
+use ctxutils::io::{rdu8, rdu16be, rdu16le, rdu32be, rdu32le};
 use std::collections::HashSet;
 use std::io::{Read, Seek};
 #[allow(unused_imports)]

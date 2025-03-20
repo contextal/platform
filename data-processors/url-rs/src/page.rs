@@ -1,8 +1,8 @@
 use crate::{
+    ChildType, FileDownload, Guid, Url,
     config::Config,
     error::UrlBackendError,
     http_response::{HttpResponse, InterruptionReason},
-    ChildType, FileDownload, Guid, Url,
 };
 use backend_utils::objects::BackendResultChild;
 use base64::Engine;
@@ -27,7 +27,7 @@ use chromiumoxide::{
 };
 use futures::StreamExt;
 use std::{
-    collections::{hash_map::Entry, HashMap},
+    collections::{HashMap, hash_map::Entry},
     mem::swap,
     sync::Arc,
     time::Duration,
@@ -36,8 +36,8 @@ use tempfile::NamedTempFile;
 use tokio::{
     fs, pin, select,
     sync::{
-        mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender},
         Mutex, RwLock,
+        mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel},
     },
     task::JoinHandle,
     time::Instant,
@@ -321,8 +321,7 @@ impl Page {
                                         if url.0 != event.request.url {
                                             trace!(
                                                 "request redirected: {:?} -> {:?}",
-                                                url.0,
-                                                event.request.url
+                                                url.0, event.request.url
                                             );
                                             let mut placeholder = Url(event.request.url.clone());
                                             swap(url, &mut placeholder);
@@ -792,15 +791,15 @@ impl Page {
                         match responses.lock().await.get_mut(&request_id) {
                             Some(v) => {
                                 v.body = Some(match base64_encoded {
-                                    true => {
-                                        match base64::prelude::BASE64_STANDARD.decode(&body) {
-                                            Ok(v) => v,
-                                            Err(e) => {
-                                                warn!("base64 decode has failed, storing body as-is: {e}");
-                                                body.into()
-                                            }
+                                    true => match base64::prelude::BASE64_STANDARD.decode(&body) {
+                                        Ok(v) => v,
+                                        Err(e) => {
+                                            warn!(
+                                                "base64 decode has failed, storing body as-is: {e}"
+                                            );
+                                            body.into()
                                         }
-                                    }
+                                    },
                                     false => body.into(),
                                 })
                             }
@@ -862,9 +861,7 @@ impl Page {
             while let Some(event) = event_stream.next().await {
                 trace!(
                     "DownloadWillBegin -> url = {:?}: {:?} => {:?}",
-                    event.url,
-                    event.suggested_filename,
-                    event.guid
+                    event.url, event.suggested_filename, event.guid
                 );
                 let mut download_slot = download_slot.lock().await;
                 if let Some(ref download) = *download_slot {
@@ -906,10 +903,7 @@ impl Page {
             while let Some(event) = event_stream.next().await {
                 trace!(
                     "DownloadProgress -> guid {:?} {:?}: [{}/{}]",
-                    event.guid,
-                    event.state,
-                    event.received_bytes,
-                    event.total_bytes
+                    event.guid, event.state, event.received_bytes, event.total_bytes
                 );
 
                 if matches!(
@@ -917,7 +911,7 @@ impl Page {
                     DownloadProgressState::Completed | DownloadProgressState::Canceled
                 ) {
                     match &mut *download_slot.lock().await {
-                        Some(ref mut v) if *v.guid == event.guid => v.state = event.state.clone(),
+                        Some(v) if *v.guid == event.guid => v.state = event.state.clone(),
                         Some(_) | None => {
                             error!(
                                 "download guid {:?} has not been accounted - \

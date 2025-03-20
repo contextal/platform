@@ -3611,9 +3611,12 @@ mod conds {
             0xac, 0x00, 0x04, 0x00, // 4
             0x27, 0x00, 0x04, 0x02, // var_bltin =
         ]);
-        assert_eq!(d.decompile(), format!(
-            "var_bltin = 0: Select Case var_noas * 2: Case 0, 2 To 3: var_bltin = 1: Case Is > 4, Is < 10: var_bltin = 2: Case Else: var_bltin = 3: End Select: var_bltin = 4"
-        ));
+        assert_eq!(
+            d.decompile(),
+            format!(
+                "var_bltin = 0: Select Case var_noas * 2: Case 0, 2 To 3: var_bltin = 1: Case Is > 4, Is < 10: var_bltin = 2: Case Else: var_bltin = 3: End Select: var_bltin = 4"
+            )
+        );
         Ok(())
     }
 }

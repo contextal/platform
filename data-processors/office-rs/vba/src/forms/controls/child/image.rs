@@ -1,5 +1,5 @@
 use crate::forms::controls::{ChildControl, OleSiteConcreteControl};
-use crate::forms::{mask::*, Picture};
+use crate::forms::{Picture, mask::*};
 use ctxutils::io::*;
 use std::io::{self, Read, Seek};
 

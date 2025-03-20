@@ -45,7 +45,7 @@ fn process_request(
             match e.kind() {
                 // Not documented, see source code in the bzip2 crate
                 std::io::ErrorKind::InvalidInput | std::io::ErrorKind::UnexpectedEof => {
-                    return Ok(BackendResultKind::error(format!("Invalid data ({})", e)))
+                    return Ok(BackendResultKind::error(format!("Invalid data ({})", e)));
                 }
                 std::io::ErrorKind::Other => {
                     debug!("Limit exceeded: {e}");

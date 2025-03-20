@@ -53,9 +53,11 @@ fn test_odt() {
         properties.get("title"),
         Some(&Value::String("Word sample file".to_string()))
     );
-    assert!(result
-        .object_metadata
-        .contains_key(&"user_properties".to_string()));
+    assert!(
+        result
+            .object_metadata
+            .contains_key(&"user_properties".to_string())
+    );
 
     let user_properties = match result.object_metadata.get("user_properties").unwrap() {
         Value::Array(array) => array,
